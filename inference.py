@@ -19,13 +19,14 @@ def parse_args():
 
 
 def load_meta_learner_params(policy_path, baseline_path, env):
+    device = "cuda" if torch.cuda.is_available() else "cpu"
     policy = NormalMLPPolicy(
         int(np.prod(env.observation_space.shape)),
         int(np.prod(env.action_space.shape)), 
         hidden_sizes=(100, 100)) # We should actually get this from config
-    policy.load_state_dict(torch.load(policy_path))
+    policy.load_state_dict(torch.load(policy_path, map_location=device))
     baseline = LinearFeatureBaseline(int(np.prod(env.observation_space.shape)))
-    baseline.load_state_dict(torch.load(baseline_path))
+    baseline.load_state_dict(torch.load(baseline_path, map_location=device))
     return policy, baseline
 
 
@@ -49,6 +50,7 @@ def evaluate(env, task, policy, max_path_length=100, render=False, random=False)
         if done:
             break
 
+
     print("========EVAL RESULTS=======")
     print("Return: {}, Timesteps:{}".format(cum_reward, t))
     print("===========================")
@@ -59,17 +61,24 @@ def main():
     env = HalfCheetahDirEnv()
     baseline_path = args.checkpoint.replace("policy", "baseline")
     policy, baseline = load_meta_learner_params(args.checkpoint, baseline_path, env)
-    sampler = BatchSampler(env_name=args.env_name, batch_size=20, num_workers=2)
+    sampler = BatchSampler(env_name=args.env_name, batch_size=20, num_workers=8)
     learner = MetaLearner(sampler, policy, baseline)
 
-    tasks = sampler.sample_tasks(num_tasks=1)
-    for task in tasks:
-        sampler.reset_task(task)
-        evaluate(env, task, policy, max_path_length=200,random=args.random)
-        pre_ep = sampler.sample(policy, gamma=0.99)
-        params = learner.adapt(pre_ep)
-        policy.load_state_dict(params)
-        evaluate(env, task, policy, max_path_length=200,random=args.random)
+    tasks = sampler.sample_tasks(num_tasks=40)
+    episodes = learner.sample(tasks, first_order=False)
+
+    print("TotalPreRewards: ",  total_rewards([ep.rewards for ep, _ in episodes]))
+    print("TotalPostRewards: ",  total_rewards([ep.rewards for _, ep in episodes]))
+
+
+    # for task in tasks:
+    #     sampler.reset_task(task)
+    #     #evaluate(env, task, policy, max_path_length=200, render=args.render, random=args.random)
+    #     pre_ep = sampler.sample(policy, gamma=0.99)
+    #     params = learner.adapt(pre_ep)
+    #     policy.load_state_dict(params)
+    #     post_ep = sampler.sample(policy, gamma=0.99)
+    #     #evaluate(env, task, policy, max_path_length=200, render=args.render, random=args.random)
 
 
 if __name__ == '__main__':
