@@ -66,6 +66,9 @@ def main(args):
         with open(os.path.join(save_folder,
                 'policy-{0}.pt'.format(batch)), 'wb') as f:
             torch.save(policy.state_dict(), f)
+        with open(os.path.join(save_folder,
+                'baseline-{0}.pt'.format(batch)), 'wb') as f:
+            torch.save(baseline.state_dict(), f)
 
 
 if __name__ == '__main__':
