@@ -18,15 +18,20 @@ def parse_args():
     return parser.parse_args()
 
 
-def load_meta_learner_params(policy_path, baseline_path, env):
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+def load_meta_learner_params(policy_path, baseline_path, env, device):
     policy = NormalMLPPolicy(
         int(np.prod(env.observation_space.shape)),
         int(np.prod(env.action_space.shape)), 
         hidden_sizes=(100, 100)) # We should actually get this from config
-    policy.load_state_dict(torch.load(policy_path, map_location=device))
+    if device == 'cpu':
+        policy.load_state_dict(torch.load(policy_path, map_location=device))
+    else:
+        policy.load_state_dict(torch.load(policy_path))
     baseline = LinearFeatureBaseline(int(np.prod(env.observation_space.shape)))
-    baseline.load_state_dict(torch.load(baseline_path, map_location=device))
+    if device == 'cpu':
+        baseline.load_state_dict(torch.load(baseline_path, map_location=device))
+    else:
+        baseline.load_state_dict(torch.load(baseline_path))
     return policy, baseline
 
 
@@ -58,11 +63,11 @@ def evaluate(env, task, policy, max_path_length=100, render=False, random=False)
 
 def main():
     args = parse_args()
-    env = HalfCheetahDirEnv()
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    sampler = BatchSampler(args.env_name, batch_size=20, num_workers=8)
     baseline_path = args.checkpoint.replace("policy", "baseline")
-    policy, baseline = load_meta_learner_params(args.checkpoint, baseline_path, env)
-    sampler = BatchSampler(env_name=args.env_name, batch_size=20, num_workers=8)
-    learner = MetaLearner(sampler, policy, baseline)
+    policy, baseline = load_meta_learner_params(args.checkpoint, baseline_path, sampler.envs, device=device)
+    learner = MetaLearner(sampler, policy, baseline, gamma=0.99, fast_lr=0.1, tau=1.0, device=device)
 
     tasks = sampler.sample_tasks(num_tasks=40)
     episodes = learner.sample(tasks, first_order=False)
