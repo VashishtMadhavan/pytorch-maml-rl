@@ -17,7 +17,8 @@ class ConvPolicy(Policy):
         self.add_module('conv1', nn.Conv2d(input_size[-1], 16, kernel_size=8, stride=4))
         self.add_module('conv2', nn.Conv2d(16, 32, kernel_size=4, stride=2))
         self.add_module('fc1', nn.Linear(9 * 9 * 32, 256))
-        self.add_module('out', nn.Linear(256, output_size))
+        self.add_module('pi', nn.Linear(256, output_size))
+        self.add_module('v', nn.Linear(256, 1))
         self.apply(weight_init)
 
     def forward(self, x, params=None):
@@ -37,7 +38,9 @@ class ConvPolicy(Policy):
         output = output.view(output.size(0), -1)
         output = F.linear(output, weight=params['fc1.weight'], bias=params['fc1.bias'])
         output = self.nonlinearity(output)
-        logits = F.linear(output, weight=params['out.weight'], bias=params['out.bias'])
+        logits = F.linear(output, weight=params['pi.weight'], bias=params['pi.bias'])
+        values = F.linear(output, weight=params['v.weight'], bias=params['v.bias'])
         if featurize:
             logits = logits.view(T, B, -1)
-        return Categorical(logits=logits)
+            values = values.view(T, B, -1)
+        return Categorical(logits=logits), values
