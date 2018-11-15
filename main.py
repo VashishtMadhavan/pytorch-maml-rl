@@ -6,8 +6,9 @@ import json
 from tqdm import tqdm
 
 from maml_rl.metalearner import MetaLearner
+from maml_rl.conv_metalearner import ConvMetaLearner
 from maml_rl.policies import CategoricalMLPPolicy, NormalMLPPolicy, ConvPolicy
-from maml_rl.baseline import LinearFeatureBaseline, ConvBaseline
+from maml_rl.baseline import LinearFeatureBaseline
 from maml_rl.sampler import BatchSampler
 
 from tensorboardX import SummaryWriter
@@ -43,13 +44,15 @@ def main(args):
             hidden_sizes=(args.hidden_size,) * args.num_layers)
         baseline = LinearFeatureBaseline(
         int(np.prod(sampler.envs.observation_space.shape)))
+        metalearner = MetaLearner(sampler, policy, baseline, gamma=args.gamma,
+            fast_lr=args.fast_lr, tau=args.tau, device=args.device)
     else:
         if args.env_name == "CustomGame-v0":
-            # TODO: potentially merge these into one
             policy = ConvPolicy(
                 sampler.envs.observation_space.shape,
                 sampler.envs.action_space.n)
-            baseline = ConvBaseline(sampler.envs.observation_space.shape)
+            metalearner = ConvMetaLearner(sampler, policy, gamma=args.gamma,
+                fast_lr=args.fast_lr, tau=args.tau, vf_coef=0.5, device=args.device)
         else:
             policy = CategoricalMLPPolicy(
                 int(np.prod(sampler.envs.observation_space.shape)),
@@ -57,9 +60,8 @@ def main(args):
                 hidden_sizes=(args.hidden_size,) * args.num_layers)
             baseline = LinearFeatureBaseline(
                 int(np.prod(sampler.envs.observation_space.shape)))
-
-    metalearner = MetaLearner(sampler, policy, baseline, gamma=args.gamma,
-        fast_lr=args.fast_lr, tau=args.tau, device=args.device)
+            metalearner = MetaLearner(sampler, policy, baseline, gamma=args.gamma,
+                fast_lr=args.fast_lr, tau=args.tau, device=args.device)
 
     """
     Training Loop
@@ -110,7 +112,7 @@ if __name__ == '__main__':
         help='number of hidden layers')
 
     # Task-specific
-    parser.add_argument('--fast-batch-size', type=int, default=20,
+    parser.add_argument('--fast-batch-size', type=int, default=10,
         help='number of episodes to estimate inner gradient')
     parser.add_argument('--fast-lr', type=float, default=0.1,
         help='learning rate for the 1-step gradient update of MAML')
@@ -118,7 +120,7 @@ if __name__ == '__main__':
     # Optimization
     parser.add_argument('--num-batches', type=int, default=1000,
         help='number of batches')
-    parser.add_argument('--meta-batch-size', type=int, default=40,
+    parser.add_argument('--meta-batch-size', type=int, default=5,
         help='number of tasks to sample from task distribution')
     parser.add_argument('--max-kl', type=float, default=1e-2,
         help='maximum value for the KL constraint in TRPO')
@@ -132,9 +134,9 @@ if __name__ == '__main__':
         help='maximum number of iterations for line search')
 
     # Miscellaneous
-    parser.add_argument('--output-folder', type=str, default='maml',
+    parser.add_argument('--output-folder', type=str, default='maml-custom-dir',
         help='name of the output folder')
-    parser.add_argument('--num-workers', type=int, default=8,
+    parser.add_argument('--num-workers', type=int, default=20,
         help='number of workers for trajectories sampling')
     parser.add_argument('--device', type=str, default='cpu',
         help='set the device (cpu or cuda)')
