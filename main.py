@@ -6,8 +6,8 @@ import json
 from tqdm import tqdm
 
 from maml_rl.metalearner import MetaLearner
-from maml_rl.policies import CategoricalMLPPolicy, NormalMLPPolicy
-from maml_rl.baseline import LinearFeatureBaseline
+from maml_rl.policies import CategoricalMLPPolicy, NormalMLPPolicy, ConvPolicy
+from maml_rl.baseline import LinearFeatureBaseline, ConvBaseline
 from maml_rl.sampler import BatchSampler
 
 from tensorboardX import SummaryWriter
@@ -33,22 +33,37 @@ def main(args):
 
     sampler = BatchSampler(args.env_name, batch_size=args.fast_batch_size,
         num_workers=args.num_workers)
+    """
+    Policy Definition
+    """
     if continuous_actions:
         policy = NormalMLPPolicy(
             int(np.prod(sampler.envs.observation_space.shape)),
             int(np.prod(sampler.envs.action_space.shape)),
             hidden_sizes=(args.hidden_size,) * args.num_layers)
-    else:
-        policy = CategoricalMLPPolicy(
-            int(np.prod(sampler.envs.observation_space.shape)),
-            sampler.envs.action_space.n,
-            hidden_sizes=(args.hidden_size,) * args.num_layers)
-    baseline = LinearFeatureBaseline(
+        baseline = LinearFeatureBaseline(
         int(np.prod(sampler.envs.observation_space.shape)))
+    else:
+        if args.env_name == "CustomGame-v0":
+            # TODO: potentially merge these into one
+            policy = ConvPolicy(
+                sampler.envs.observation_space.shape,
+                sampler.envs.action_space.n)
+            baseline = ConvBaseline(sampler.envs.observation_space.shape)
+        else:
+            policy = CategoricalMLPPolicy(
+                int(np.prod(sampler.envs.observation_space.shape)),
+                sampler.envs.action_space.n,
+                hidden_sizes=(args.hidden_size,) * args.num_layers)
+            baseline = LinearFeatureBaseline(
+                int(np.prod(sampler.envs.observation_space.shape)))
 
     metalearner = MetaLearner(sampler, policy, baseline, gamma=args.gamma,
         fast_lr=args.fast_lr, tau=args.tau, device=args.device)
 
+    """
+    Training Loop
+    """
     for batch in tqdm(range(args.num_batches)):
         tasks = sampler.sample_tasks(num_tasks=args.meta_batch_size)
         episodes = metalearner.sample(tasks, first_order=args.first_order)
@@ -74,7 +89,6 @@ def main(args):
 if __name__ == '__main__':
     import argparse
     import os
-    import multiprocessing as mp
 
     parser = argparse.ArgumentParser(description='Reinforcement learning with '
         'Model-Agnostic Meta-Learning (MAML)')
@@ -97,7 +111,7 @@ if __name__ == '__main__':
 
     # Task-specific
     parser.add_argument('--fast-batch-size', type=int, default=20,
-        help='batch size for each individual task')
+        help='number of episodes to estimate inner gradient')
     parser.add_argument('--fast-lr', type=float, default=0.1,
         help='learning rate for the 1-step gradient update of MAML')
 
@@ -105,7 +119,7 @@ if __name__ == '__main__':
     parser.add_argument('--num-batches', type=int, default=1000,
         help='number of batches')
     parser.add_argument('--meta-batch-size', type=int, default=40,
-        help='number of tasks per batch')
+        help='number of tasks to sample from task distribution')
     parser.add_argument('--max-kl', type=float, default=1e-2,
         help='maximum value for the KL constraint in TRPO')
     parser.add_argument('--cg-iters', type=int, default=10,
@@ -120,7 +134,7 @@ if __name__ == '__main__':
     # Miscellaneous
     parser.add_argument('--output-folder', type=str, default='maml',
         help='name of the output folder')
-    parser.add_argument('--num-workers', type=int, default=mp.cpu_count() - 1,
+    parser.add_argument('--num-workers', type=int, default=8,
         help='number of workers for trajectories sampling')
     parser.add_argument('--device', type=str, default='cpu',
         help='set the device (cpu or cuda)')
