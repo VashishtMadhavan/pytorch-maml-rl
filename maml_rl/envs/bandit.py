@@ -51,7 +51,7 @@ class BernoulliBanditEnv(gym.Env):
         reward = self.np_random.binomial(1, mean)
         observation = np.zeros(1, dtype=np.float32)
 
-        return observation, reward, True, self._task
+        return observation, reward, False, self._task
 
 class GaussianBanditEnv(gym.Env):
     """Multi-armed problems with Gaussian observations.
