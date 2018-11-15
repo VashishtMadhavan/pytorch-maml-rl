@@ -63,6 +63,8 @@ def evaluate(env, task, policy, max_path_length=100, render=False, random=False)
 
 def main():
     args = parse_args()
+    env = HalfCheetahDirEnv()
+
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     sampler = BatchSampler(args.env_name, batch_size=20, num_workers=8)
     baseline_path = args.checkpoint.replace("policy", "baseline")
@@ -70,20 +72,12 @@ def main():
     learner = MetaLearner(sampler, policy, baseline, gamma=0.99, fast_lr=0.1, tau=1.0, device=device)
 
     tasks = sampler.sample_tasks(num_tasks=40)
+    evaluate(env, tasks[0], learner.policy, max_path_length=200, render=args.render, random=args.random)
     episodes = learner.sample(tasks, first_order=False)
 
     print("TotalPreRewards: ",  total_rewards([ep.rewards for ep, _ in episodes]))
     print("TotalPostRewards: ",  total_rewards([ep.rewards for _, ep in episodes]))
-
-
-    # for task in tasks:
-    #     sampler.reset_task(task)
-    #     #evaluate(env, task, policy, max_path_length=200, render=args.render, random=args.random)
-    #     pre_ep = sampler.sample(policy, gamma=0.99)
-    #     params = learner.adapt(pre_ep)
-    #     policy.load_state_dict(params)
-    #     post_ep = sampler.sample(policy, gamma=0.99)
-    #     #evaluate(env, task, policy, max_path_length=200, render=args.render, random=args.random)
+    evaluate(env, tasks[0], learner.policy, max_path_length=200, render=args.render, random=args.random)
 
 
 if __name__ == '__main__':
