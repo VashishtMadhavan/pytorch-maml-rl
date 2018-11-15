@@ -129,7 +129,7 @@ class ConvMetaLearner(object):
 
                 loss = -weighted_mean(ratio * advantages, dim=0,
                     weights=valid_episodes.mask)
-                vf_loss = self.vf_coef * 0.5 * weighted_mean((values.squeeze() - episodes.returns) ** 2,
+                vf_loss = self.vf_coef * 0.5 * weighted_mean((values.squeeze() - valid_episodes.returns) ** 2,
                     dim=0, weights=valid_episodes.mask)
 
                 losses.append(loss)

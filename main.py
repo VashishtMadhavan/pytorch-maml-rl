@@ -51,6 +51,7 @@ def main(args):
             policy = ConvPolicy(
                 sampler.envs.observation_space.shape,
                 sampler.envs.action_space.n)
+            baseline = None
             metalearner = ConvMetaLearner(sampler, policy, gamma=args.gamma,
                 fast_lr=args.fast_lr, tau=args.tau, vf_coef=0.5, device=args.device)
         else:
@@ -83,9 +84,10 @@ def main(args):
         with open(os.path.join(save_folder,
                 'policy-{0}.pt'.format(batch)), 'wb') as f:
             torch.save(policy.state_dict(), f)
-        with open(os.path.join(save_folder,
+        if baseline:
+            with open(os.path.join(save_folder,
                 'baseline-{0}.pt'.format(batch)), 'wb') as f:
-            torch.save(baseline.state_dict(), f)
+                torch.save(baseline.state_dict(), f)
 
 
 if __name__ == '__main__':
@@ -114,7 +116,7 @@ if __name__ == '__main__':
     # Task-specific
     parser.add_argument('--fast-batch-size', type=int, default=10,
         help='number of episodes to estimate inner gradient')
-    parser.add_argument('--fast-lr', type=float, default=0.1,
+    parser.add_argument('--fast-lr', type=float, default=0.01,
         help='learning rate for the 1-step gradient update of MAML')
 
     # Optimization
@@ -134,7 +136,7 @@ if __name__ == '__main__':
         help='maximum number of iterations for line search')
 
     # Miscellaneous
-    parser.add_argument('--output-folder', type=str, default='maml-custom-dir',
+    parser.add_argument('--output-folder', type=str, default='maml-custom-comb-dir',
         help='name of the output folder')
     parser.add_argument('--num-workers', type=int, default=20,
         help='number of workers for trajectories sampling')
