@@ -3,10 +3,12 @@ import gym
 from gym import spaces
 from gym.utils import seeding
 from ple import PLE
+import os
 
 class CustomGameEnv(gym.Env):
     def __init__(self, task={}):
         self._task = task
+        os.environ['SDL_VIDEODRIVER'] = 'dummy'
 
         import importlib
         game_module = importlib.import_module('ple.games.customgame')
