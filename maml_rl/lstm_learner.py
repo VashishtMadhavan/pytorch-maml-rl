@@ -31,7 +31,8 @@ class LSTMLearner(object):
     LSTM Learner using A2C to Train
     """
     def __init__(self, env_name, batch_size, num_workers,
-                gamma=0.95, lr=0.5, tau=1.0, vf_coef=0.5, device='cpu'):
+                gamma=0.95, lr=0.5, tau=1.0, vf_coef=0.5, device='cpu',
+                max_grad_norm=40):
         self.vf_coef = vf_coef
         self.gamma = gamma
         self.device = device
@@ -52,6 +53,7 @@ class LSTMLearner(object):
         self.tau = tau
         self.optimizer = optim.Adam(self.policy.parameters(), lr=self.lr)
         self.to(device)
+        self.max_grad_norm = max_grad_norm
 
     def loss(self, episodes):
         """Compute the inner loss for the one-step gradient update. The inner 
@@ -86,7 +88,7 @@ class LSTMLearner(object):
         self.optimizer.zero_grad()
         loss = self.loss(episodes)
         loss.backward()
-        torch.nn.utils.clip_grad_norm_(self.policy.parameters(), 40)
+        torch.nn.utils.clip_grad_norm_(self.policy.parameters(), self.max_grad_norm)
         self.optimizer.step()
 
     def sample(self):
