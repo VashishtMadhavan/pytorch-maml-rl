@@ -2,13 +2,10 @@ import gym
 import numpy as np
 import torch
 import argparse
+import torch
 
 import maml_rl.envs
-from maml_rl.policies.conv_policy import ConvPolicy
-from maml_rl.baseline import ConvBaseline
-from maml_rl.sampler import BatchSampler
-from maml_rl.metalearner import MetaLearner
-from main import total_rewards
+from maml_rl.policies.conv_lstm_policy import ConvLSTMPolicy
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -19,62 +16,56 @@ def parse_args():
     return parser.parse_args()
 
 
-def load_meta_learner_params(policy_path, baseline_path, env, device):
-    policy = ConvPolicy(
-        env.observation_space.shape,
-        env.action_space.n)
-    baseline = ConvBaseline(env.observation_space.shape)
+def load_params(policy_path, env, device):
+    policy = ConvLSTMPolicy(
+        input_size=env.observation_space.shape,
+        output_size=env.action_space.n)
     if device == 'cpu':
         policy.load_state_dict(torch.load(policy_path, map_location=device))
-        baseline.load_state_dict(torch.load(baseline_path, map_location=device))
     else:
         policy.load_state_dict(torch.load(policy_path))
-        baseline.load_state_dict(torch.load(baseline_path))
-    return policy, baseline
+    return policy
 
 
-def evaluate(env, task, policy, max_path_length=100, render=False, random=False):
-    cum_reward = 0
-    t = 0
-    env.unwrapped.reset_task(task)
-    obs = env.reset()
-    for _ in range(max_path_length):
-        if render:
-            env.render()
-        obs_tensor = torch.from_numpy(np.array(obs)[None]).to(device='cpu').type(torch.FloatTensor)
-        action_tensor = policy(obs_tensor, params=None).sample()
-        action = action_tensor.cpu().numpy()
-        if random:
-            obs, rew, done, _ = env.step(env.action_space.sample())
-        else: 
-            obs, rew, done, _ = env.step(action[0])
-        cum_reward += rew
-        t += 1
-        if done:
-            break
+def evaluate(env, policy, device, test_eps=10, render=False, random=False):
+    num_actions = env.action_space.n
+    ep_rews = []; ep_steps = []
+    for t in range(test_eps):
+        obs = env.reset(); done = False
+        embed_tensor = torch.zeros(1, num_actions + 2).to(device=device)
+        hx = torch.zeros(1, 256).to(device=device)
+        cx = torch.zeros(1, 256).to(device=device)
+        total_rew = 0; tstep = 0
 
-    print("========EVAL RESULTS=======")
-    print("Return: {}, Timesteps:{}".format(cum_reward, t))
-    print("===========================")
+        while not done:
+            if render:
+                env.render()
+            obs_tensor = torch.from_numpy(np.array(obs)[None]).to(device=device)
+            action_dist, value_tensor, hx, cx = policy(obs_tensor, hx, cx, embed_tensor)
+            action = action_dist.sample().cpu().numpy()
 
+            if random:
+                obs, rew, done, _ = env.step(env.action_space.sample())
+            else:
+                obs, rew, done, _ = env.step(action[0])
 
+            embed_temp = np.append(np.zeros(num_actions), [rew, float(done)])
+            embed_temp[action[0]] = 1.
+            embed_tensor = torch.from_numpy(embed_temp[None]).float().to(device=device)
+
+            total_rew += rew; tstep += 1
+        ep_rews.append(total_rew); ep_steps.append(tstep)
+    return ep_rews, ep_steps
+ 
 def main():
     args = parse_args()
     env = gym.make(args.env_name)
-
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    sampler = BatchSampler(args.env_name, batch_size=10, num_workers=8)
-    baseline_path = args.checkpoint.replace("policy", "baseline")
-    policy, baseline = load_meta_learner_params(args.checkpoint, baseline_path, sampler.envs, device=device)
-    learner = MetaLearner(sampler, policy, baseline, gamma=0.99, fast_lr=0.1, tau=1.0, device=device)
+    policy = load_params(args.checkpoint, env, device)
+    episode_rew, episode_steps = evaluate(env, policy, device, render=args.render, random=args.random)
 
-    tasks = sampler.sample_tasks(num_tasks=5)
-    evaluate(env, tasks[0], learner.policy, max_path_length=100, render=args.render, random=args.random)
-    episodes = learner.sample(tasks, first_order=False)
-
-    print("TotalPreRewards: ",  total_rewards([ep.rewards for ep, _ in episodes]))
-    print("TotalPostRewards: ",  total_rewards([ep.rewards for _, ep in episodes]))
-    evaluate(env, tasks[0], learner.policy, max_path_length=100, render=args.render, random=args.random)
+    print("MeanRewards: ",  np.mean(episode_rew))
+    print("MeanSteps: ", np.mean(episode_steps))
 
 
 if __name__ == '__main__':
