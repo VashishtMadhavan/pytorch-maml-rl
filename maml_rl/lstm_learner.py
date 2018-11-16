@@ -120,8 +120,8 @@ class LSTMLearner(object):
             # update embeddings
             # this basically sets the action embedding to the 0 embedding if done
             actions_mask = ((1. - dones.astype(np.float32)) * actions).astype(np.int32)
-            action_embed_tensor = torch.from_numpy(one_hot(actions_mask, num_actions)).float().to(device=device)
-            rew_embed_tensor = torch.from_numpy(np.hstack((rewards[:, None], dones[:, None]))).float().to(device=device)
+            action_embed_tensor = torch.from_numpy(one_hot(actions_mask, num_actions)).float().to(device=self.device)
+            rew_embed_tensor = torch.from_numpy(np.hstack((rewards[:, None], dones[:, None]))).float().to(device=self.device)
 
             # update hidden states
             dones_tensor = torch.from_numpy(dones.astype(np.float32)).to(device=self.device)
