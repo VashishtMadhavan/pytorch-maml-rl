@@ -32,16 +32,17 @@ def evaluate(env, policy, device, test_eps=10, render=False, random=False):
     ep_rews = []; ep_steps = []
     for t in range(test_eps):
         obs = env.reset(); done = False
-        embed_tensor = torch.zeros(1, num_actions + 2).to(device=device)
+        action_embed_tensor = torch.zeros(1, num_actions).to(device=self.device)
+        action_embed_tensor[:, 0] = 1.
+        rew_embed_tensor = torch.zeros(1, 2).to(device=self.device)
         hx = torch.zeros(1, 256).to(device=device)
-        cx = torch.zeros(1, 256).to(device=device)
         total_rew = 0; tstep = 0
 
         while not done:
             if render:
                 env.render()
             obs_tensor = torch.from_numpy(np.array(obs)[None]).to(device=device)
-            action_dist, value_tensor, hx, cx = policy(obs_tensor, hx, cx, embed_tensor)
+            action_dist, value_tensor, hx = policy(obs_tensor, hx, action_embed_tensor, rew_embed_tensor)
             action = action_dist.sample().cpu().numpy()
 
             if random:
@@ -49,10 +50,11 @@ def evaluate(env, policy, device, test_eps=10, render=False, random=False):
             else:
                 obs, rew, done, _ = env.step(action[0])
 
-            embed_temp = np.append(np.zeros(num_actions), [rew, float(done)])
-            embed_temp[action[0]] = 1.
-            embed_tensor = torch.from_numpy(embed_temp[None]).float().to(device=device)
+            action_embed_temp = np.zeros(num_actions)
+            action_embed_temp[action[0]] = 1.
+            action_embed_tensor = torch.from_numpy(action_embed_temp[None]).float().to(device=device)
 
+            rew_embed_tensor = torch.from_numpy(np.array([rew, float(done)])).float().to(device=device)
             total_rew += rew; tstep += 1
         ep_rews.append(total_rew); ep_steps.append(tstep)
     return ep_rews, ep_steps

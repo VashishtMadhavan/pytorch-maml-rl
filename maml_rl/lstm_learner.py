@@ -63,13 +63,12 @@ class LSTMLearner(object):
         T = episodes.observations.size(0)
         values, log_probs = [], []
         hx = torch.zeros(self.batch_size, 256).to(device=self.device)
-        cx = torch.zeros(self.batch_size, 256).to(device=self.device)
         for t in range(T):
-            pi_t, v_t, hx, cx = self.policy(episodes.observations[t], hx, cx, episodes.embeds[t])
+            pi_t, v_t, hx = self.policy(episodes.observations[t], hx, episodes.action_embeds[t], episodes.rew_embeds[t])
             values.append(v_t)
             log_probs.append(pi_t.log_prob(episodes.actions[t]))
-        log_probs = torch.stack(log_probs); values = torch.stack(values)
 
+        log_probs = torch.stack(log_probs); values = torch.stack(values)
         advantages = episodes.gae(values, tau=self.tau)
         advantages = weighted_normalize(advantages, weights=episodes.mask)
 
@@ -103,26 +102,33 @@ class LSTMLearner(object):
             self.queue.put(None)
         observations, batch_ids = self.envs.reset()
         dones = [False]; num_actions = self.envs.action_space.n
-        embed_tensor = torch.zeros(self.num_workers, num_actions + 2).to(device=self.device)
+
+        action_embed_tensor = torch.zeros(self.num_workers, num_actions).to(device=self.device)
+        action_embed_tensor[:, 0] = 1.
+        rew_embed_tensor = torch.zeros(self.num_workers, 2).to(device=self.device)
         hx = torch.zeros(self.num_workers, 256).to(device=self.device)
-        cx = torch.zeros(self.num_workers, 256).to(device=self.device)
 
         while (not all(dones)) or (not self.queue.empty()):
             with torch.no_grad():
                 observations_tensor = torch.from_numpy(observations).to(device=self.device)
-                actions_dist, values_tensor, hx, cx = self.policy(observations_tensor, hx, cx, embed_tensor)
+                actions_dist, values_tensor, hx = self.policy(observations_tensor, hx, action_embed_tensor, rew_embed_tensor)
                 actions = actions_dist.sample().cpu().numpy()
-                embed = embed_tensor.cpu().numpy()
+                action_embed = action_embed_tensor.cpu().numpy()
+                rew_embed = rew_embed_tensor.cpu().numpy()
             new_observations, rewards, dones, new_batch_ids, _ = self.envs.step(actions)
 
             # update embeddings
-            actions_one_hot = np.hstack((one_hot(actions, num_actions), rewards[:, None], dones[:, None]))
-            embed_tensor = torch.from_numpy(actions_one_hot).float().to(device=self.device)
+            # this basically sets the action embedding to the 0 embedding if done
+            actions_mask = (1. - dones.astype(np.float32)) * actions
+            action_embed_tensor = torch.from_numpy(one_hot(actions_mask, num_actions)).float().to(device=device)
+            rew_embed_tensor = torch.from_numpy(np.hstack((rewards[:, None], dones[:, None]))).float().to(device=device)
 
             # update hidden states
             dones_tensor = torch.from_numpy(dones.astype(np.float32)).to(device=self.device)
-            hx[dones_tensor == 1] = 0.; cx[dones_tensor == 1] = 0.
-            episodes.append(observations, actions, rewards, batch_ids, embed)
+            hx[dones_tensor == 1] = 0.
+            rew_embed_tensor[dones_tensor == 1] == 0.
+
+            episodes.append(observations, actions, rewards, batch_ids, action_embed, rew_embed)
             observations, batch_ids = new_observations, new_batch_ids
         return episodes
 
