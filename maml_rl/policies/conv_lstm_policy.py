@@ -11,7 +11,7 @@ class ConvLSTMPolicy(nn.Module):
     Baseline DQN Architecture
     """
     def __init__(self, input_size, output_size, nonlinearity=F.relu):
-        super(ConvPolicy, self).__init__()
+        super(ConvLSTMPolicy, self).__init__()
         self.input_size = input_size
         self.output_size = output_size
         self.nonlinearity = nonlinearity
@@ -24,25 +24,15 @@ class ConvLSTMPolicy(nn.Module):
         self.pi = nn.Linear(256, self.output_size)
         self.v = nn.Linear(256, 1)
 
-    def forward(self, x):
-        x, (hx, cx) = x
-        featurize = len(x.size()) > 4
-        if featurize:
-            T, B, H, W, C = x.size()
-            output = x.view(T * B, H, W, C)
-            output = output.permute(0, 3, 1, 2)
-        else:
-            output = x.permute(0, 3, 1, 2)
-
+    def forward(self, x, hx, cx, embedding):
+        output = x.permute(0, 3, 1, 2)
         output = self.nonlinearity(self.conv1(output))
         output = self.nonlinearity(self.conv2(output))
         output = output.view(output.size(0), -1)
         output = self.nonlinearity(self.fc1(output))
-        hx, cx = self.lstm(output, (hx, cx))
-        output = hx
+        output = torch.cat((output, embedding), dim=1)
+        h_out, c_out = self.lstm(output, (hx, cx))
+        output = h_out
         logits = self.pi(output)
         values = self.v(output)
-        if featurize:
-            logits = logits.view(T, B, -1)
-            values = values.view(T, B, -1)
-        return Categorical(logits=logits), values, (hx, cx)
+        return Categorical(logits=logits), values, hx, cx

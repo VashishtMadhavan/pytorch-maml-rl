@@ -5,8 +5,6 @@ import torch
 import json
 from tqdm import tqdm
 
-from maml_rl.policies import ConvLSTMPolicy
-from maml_rl.sampler import BatchSampler
 from maml_rl.lstm_learner import LSTMLearner
 from tensorboardX import SummaryWriter
 
@@ -25,15 +23,9 @@ def main(args):
         config.update(device=args.device.type)
         json.dump(config, f, indent=2)
 
-    sampler = BatchSampler(args.env_name, batch_size=args.batch_size, num_workers=args.num_workers)
-    """
-    Policy Definition
-    """
-    policy = ConvLSTMPolicy(input_size=sampler.envs.observation_space.shape,
-        output_size=sampler.envs.action_space.n)
-    learner = LSTMLearner(sampler, policy, gamma=args.gamma,
+    learner = LSTMLearner(env_name=args.env_name, batch_size=args.batch_size,
+        num_workers=args.num_workers, gamma=args.gamma,
         lr=args.lr, tau=args.tau, vf_coef=0.5, device=args.device)
-       
     """
     Training Loop
     """
@@ -43,12 +35,12 @@ def main(args):
 
         # Tensorboard
         writer.add_scalar('total_rewards/reward',
-            total_rewards([ep.rewards for _, ep in episodes]), batch)
+            total_rewards([episodes.rewards]), batch)
 
         # Save policy network
         with open(os.path.join(save_folder,
                 'policy-{0}.pt'.format(batch)), 'wb') as f:
-            torch.save(policy.state_dict(), f)
+            torch.save(learner.policy.state_dict(), f)
 
 
 if __name__ == '__main__':
@@ -64,16 +56,17 @@ if __name__ == '__main__':
         help='value of the discount factor gamma')
     parser.add_argument('--tau', type=float, default=1.0,
         help='value of the discount factor for GAE')
-    parser.add_argument('--vf_coef', type=float, default=0.5)
+    parser.add_argument('--vf_coef', type=float, default=0.5,
+        help='coefficient for value function portion of loss')
     parser.add_argument('--batch-size', type=int, default=10,
         help='number of episodes to estimate inner gradient')
-    parser.add_argument('--lr', type=float, default=0.1,
+    parser.add_argument('--lr', type=float, default=1e-4,
         help='learning rate for the 1-step gradient update of MAML')
     parser.add_argument('--num-batches', type=int, default=1000,
         help='number of batches')    
 
     # Miscellaneous
-    parser.add_argument('--output-folder', type=str, default='maml-custom-dir',
+    parser.add_argument('--output-folder', type=str, default='lstm',
         help='name of the output folder')
     parser.add_argument('--num-workers', type=int, default=20,
         help='number of workers for trajectories sampling')

@@ -102,3 +102,31 @@ class BatchEpisodes(object):
 
     def __len__(self):
         return max(map(len, self._rewards_list))
+
+
+class LSTMBatchEpisodes(BatchEpisodes):
+    def __init__(self, batch_size, gamma=0.95, device='cpu'):
+        super(LSTMBatchEpisodes, self).__init__(batch_size=batch_size, gamma=gamma, device=device)
+        self._embed_list = [[] for _ in range(batch_size)]
+        self._embed = None
+
+    @property
+    def embeds(self):
+        if self._embed is None:
+            embed_shape = self._embed_list[0][0].shape
+            embeds = np.zeros((len(self), self.batch_size) + embed_shape, dtype=np.float32)
+            for i in range(self.batch_size):
+                length = len(self._embed_list[i])
+                embeds[:length, i] = np.stack(self._embed_list[i], axis=0)
+            self._embed = torch.from_numpy(embeds).to(self.device)
+        return self._embed
+
+    def append(self, observations, actions, rewards, batch_ids, embeds):
+        for observation, action, reward, batch_id, embed in zip(
+                observations, actions, rewards, batch_ids, embeds):
+            if batch_id is None:
+                continue
+            self._observations_list[batch_id].append(observation.astype(np.float32))
+            self._actions_list[batch_id].append(action.astype(np.float32))
+            self._rewards_list[batch_id].append(reward.astype(np.float32))
+            self._embed_list[batch_id].append(embed.astype(np.float32))
