@@ -31,9 +31,10 @@ class LSTMLearner(object):
     LSTM Learner using A2C to Train
     """
     def __init__(self, env_name, batch_size, num_workers,
-                gamma=0.95, lr=0.5, tau=1.0, vf_coef=0.5, device='cpu',
+                gamma=0.95, lr=0.5, tau=1.0, ent_coef=.01, vf_coef=0.5, device='cpu',
                 max_grad_norm=40):
         self.vf_coef = vf_coef
+        self.ent_coef = ent_coef
         self.gamma = gamma
         self.device = device
 
@@ -61,14 +62,15 @@ class LSTMLearner(object):
         with Generalized Advantage Estimation (GAE, [3]).
         """
         T = episodes.observations.size(0)
-        values, log_probs = [], []
+        values, log_probs, entropy = [], [], []
         hx = torch.zeros(self.batch_size, 256).to(device=self.device)
         for t in range(T):
             pi_t, v_t, hx = self.policy(episodes.observations[t], hx, episodes.action_embeds[t], episodes.rew_embeds[t])
             values.append(v_t)
+            entropy.append(pi_t.entropy())
             log_probs.append(pi_t.log_prob(episodes.actions[t]))
 
-        log_probs = torch.stack(log_probs); values = torch.stack(values)
+        log_probs = torch.stack(log_probs); values = torch.stack(values); entropy = torch.stack(entropy)
         advantages = episodes.gae(values, tau=self.tau)
         advantages = weighted_normalize(advantages, weights=episodes.mask)
 
@@ -78,7 +80,8 @@ class LSTMLearner(object):
             weights=episodes.mask)
         vf_loss = 0.5 * weighted_mean((values.squeeze() - episodes.returns) ** 2,
             dim=0, weights=episodes.mask)
-        return loss + self.vf_coef * vf_loss
+        entropy_loss = weighted_mean(entropy, dim=0, weights=episodes.mask)
+        return loss + self.vf_coef * vf_loss - self.ent_coef * entropy_loss
 
     def step(self, episodes):
         """
