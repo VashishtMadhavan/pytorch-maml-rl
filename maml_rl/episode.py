@@ -129,7 +129,7 @@ class LSTMBatchEpisodes(BatchEpisodes):
             rew_embed_shape = self._rew_embed_list[0][0].shape
             rew_embeds = np.zeros((len(self), self.batch_size) + rew_embed_shape, dtype=np.float32)
             for i in range(self.batch_size):
-                rew_embeds = len(self._rew_embed_list[i])
+                length = len(self._rew_embed_list[i])
                 rew_embeds[:length, i] = np.stack(self._rew_embed_list[i], axis=0)
             self._rew_embed = torch.from_numpy(rew_embeds).to(self.device)
         return self._rew_embed
