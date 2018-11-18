@@ -33,13 +33,8 @@ class CustomGameEnv(gym.Env):
         return [seed]
 
     # TODO: figure this out
-    def sample_tasks(self, num_tasks):
-        tasks = [{} for _ in range(num_tasks)]
-        return tasks
-
-    # TODO: figure this out
     def reset_task(self, task):
-        self._task = task
+        self.game_state.game.easy_env_flag = 1.0 - self.game_state.game.easy_env_flag
 
     def render(self, mode='human'):
         img = self._get_image()
