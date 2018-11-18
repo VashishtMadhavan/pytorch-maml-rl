@@ -104,7 +104,7 @@ class LSTMLearner(object):
         for _ in range(self.num_workers):
             self.queue.put(None)
 
-        self.envs.reset_task(None)
+        self.envs.reset_task([None for _ in range(self.num_workers)])
         observations, batch_ids = self.envs.reset()
         dones = [False]; num_actions = self.envs.action_space.n
 
