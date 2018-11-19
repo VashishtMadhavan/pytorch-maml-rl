@@ -31,7 +31,7 @@ class LSTMLearner(object):
     LSTM Learner using A2C to Train
     """
     def __init__(self, env_name, batch_size, num_workers,
-                gamma=0.95, lr=0.5, tau=1.0, ent_coef=.01, vf_coef=0.5, device='cpu',
+                gamma=0.95, lr=0.01, tau=1.0, ent_coef=.01, vf_coef=0.5, device='cpu',
                 max_grad_norm=40):
         self.vf_coef = vf_coef
         self.ent_coef = ent_coef
@@ -52,7 +52,7 @@ class LSTMLearner(object):
         # Optimization Variables
         self.lr = lr
         self.tau = tau
-        self.optimizer = optim.Adam(self.policy.parameters(), lr=self.lr)
+        self.optimizer = optim.RMSprop(self.policy.parameters(), lr=self.lr, alpha=0.99)
         self.to(device)
         self.max_grad_norm = max_grad_norm
 

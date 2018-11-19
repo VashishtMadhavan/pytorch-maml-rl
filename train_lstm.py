@@ -60,7 +60,7 @@ if __name__ == '__main__':
         help='coefficient for value function portion of loss')
     parser.add_argument('--batch-size', type=int, default=120,
         help='number of episodes to estimate gradient')
-    parser.add_argument('--lr', type=float, default=1e-4,
+    parser.add_argument('--lr', type=float, default=7e-4,
         help='learning rate for the LSTM network')
     parser.add_argument('--num-batches', type=int, default=1000,
         help='number of batches')    
