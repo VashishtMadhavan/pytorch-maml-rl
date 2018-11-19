@@ -21,5 +21,5 @@ def universe_wrapper(entry_point, **kwargs):
     env = WarpFrame(env)
     env = ScaledFloatFrame(env)
     env = ClipRewardEnv(env)
-    env = FrameStack(env, 4)
+    env = FrameStack(env, 2)
     return env

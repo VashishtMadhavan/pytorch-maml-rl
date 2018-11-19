@@ -25,7 +25,7 @@ def main(args):
 
     learner = LSTMLearner(env_name=args.env_name, batch_size=args.batch_size,
         num_workers=args.num_workers, gamma=args.gamma,
-        lr=args.lr, tau=args.tau, vf_coef=0.5, device=args.device)
+        lr=args.lr, tau=args.tau, vf_coef=args.vf_coef, device=args.device)
     """
     Training Loop
     """
