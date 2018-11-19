@@ -5,10 +5,11 @@ from torch.distributions import Categorical
 
 from collections import OrderedDict
 from maml_rl.policies.policy import Policy
+import numpy as np
 
 def normalized_columns_initializer(weights, std=1.0):
     out = torch.randn(weights.size())
-    out *= std / torch.sqrt(out.pow(2).sum(1).expand_as(out))
+    out *= std / torch.sqrt(out.pow(2).sum(1, keepdim=True).expand_as(out))
     return out
 
 def weights_init(m):
