@@ -56,7 +56,7 @@ if __name__ == '__main__':
         help='value of the discount factor gamma')
     parser.add_argument('--tau', type=float, default=1.0,
         help='value of the discount factor for GAE')
-    parser.add_argument('--vf_coef', type=float, default=0.5,
+    parser.add_argument('--vf_coef', type=float, default=0.25,
         help='coefficient for value function portion of loss')
     parser.add_argument('--batch-size', type=int, default=120,
         help='number of episodes to estimate gradient')

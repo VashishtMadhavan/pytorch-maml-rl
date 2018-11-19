@@ -32,7 +32,7 @@ class LSTMLearner(object):
     """
     def __init__(self, env_name, batch_size, num_workers,
                 gamma=0.95, lr=0.01, tau=1.0, ent_coef=.01, vf_coef=0.5, device='cpu',
-                max_grad_norm=40):
+                max_grad_norm=0.5):
         self.vf_coef = vf_coef
         self.ent_coef = ent_coef
         self.gamma = gamma
@@ -52,7 +52,7 @@ class LSTMLearner(object):
         # Optimization Variables
         self.lr = lr
         self.tau = tau
-        self.optimizer = optim.RMSprop(self.policy.parameters(), lr=self.lr, alpha=0.99)
+        self.optimizer = optim.RMSprop(self.policy.parameters(), lr=self.lr, alpha=0.99, epsilon=1e-5)
         self.to(device)
         self.max_grad_norm = max_grad_norm
 
