@@ -7,27 +7,6 @@ from collections import OrderedDict
 from maml_rl.policies.policy import Policy
 import numpy as np
 
-def normalized_columns_initializer(weights, std=1.0):
-    out = torch.randn(weights.size())
-    out *= std / torch.sqrt(out.pow(2).sum(1, keepdim=True).expand_as(out))
-    return out
-
-def weights_init(m):
-    if isinstance(m, nn.Conv2d):
-        weight_shape = list(m.weight.data.size())
-        fan_in = np.prod(weight_shape[1:4])
-        fan_out = np.prod(weight_shape[2:4]) * weight_shape[0]
-        w_bound = np.sqrt(6. / (fan_in + fan_out))
-        m.weight.data.uniform_(-w_bound, w_bound)
-        m.bias.data.fill_(0)
-    elif isinstance(m, nn.Linear):
-        weight_shape = list(m.weight.data.size())
-        fan_in = weight_shape[1]
-        fan_out = weight_shape[0]
-        w_bound = np.sqrt(6. / (fan_in + fan_out))
-        m.weight.data.uniform_(-w_bound, w_bound)
-        m.bias.data.fill_(0)
-
 class ConvLSTMPolicy(nn.Module):
     """
     Baseline DQN Architecture
@@ -46,16 +25,6 @@ class ConvLSTMPolicy(nn.Module):
         self.pi = nn.Linear(256, self.output_size)
         self.v = nn.Linear(256, 1)
 
-        self.apply(weights_init)
-        self.pi.weight.data = normalized_columns_initializer(self.pi.weight.data, 0.01)
-        self.pi.bias.data.fill_(0)
-
-        self.v.weight.data = normalized_columns_initializer(self.v.weight.data, 1.0)
-        self.v.bias.data.fill_(0)
-
-        self.lstm.bias_ih.data.fill_(0)
-        self.lstm.bias_hh.data.fill_(0)
-
     def forward(self, x, hx, cx, act_embedding, rew_embedding):
         # state embedding
         output = x.permute(0, 3, 1, 2)
@@ -64,7 +33,7 @@ class ConvLSTMPolicy(nn.Module):
         output = output.view(output.size(0), -1)
         output = self.nonlinearity(self.fc(output))
 
-        # passing joint embedding through GRU
+        # passing joint embedding through LSTM
         output = torch.cat((output, act_embedding, rew_embedding), dim=1)
         h_out, c_out = self.lstm(output, (hx, cx))
         output = h_out
