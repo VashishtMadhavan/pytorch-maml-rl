@@ -64,8 +64,9 @@ class LSTMLearner(object):
         T = episodes.observations.size(0)
         values, log_probs, entropy = [], [], []
         hx = torch.zeros(self.batch_size, 256).to(device=self.device)
+        cx = torch.zeros(self.batch_size, 256).to(device=self.device)
         for t in range(T):
-            pi_t, v_t, hx = self.policy(episodes.observations[t], hx, episodes.action_embeds[t], episodes.rew_embeds[t])
+            pi_t, v_t, hx, cx = self.policy(episodes.observations[t], hx, cx, episodes.action_embeds[t], episodes.rew_embeds[t])
             values.append(v_t)
             entropy.append(pi_t.entropy())
             log_probs.append(pi_t.log_prob(episodes.actions[t]))
@@ -112,11 +113,12 @@ class LSTMLearner(object):
         action_embed_tensor[:, 0] = 1.
         rew_embed_tensor = torch.zeros(self.num_workers, 2).to(device=self.device)
         hx = torch.zeros(self.num_workers, 256).to(device=self.device)
+        cx = torch.zeros(self.num_workers, 256).to(device=self.device)
 
         while (not all(dones)) or (not self.queue.empty()):
             with torch.no_grad():
                 observations_tensor = torch.from_numpy(observations).to(device=self.device)
-                actions_dist, values_tensor, hx = self.policy(observations_tensor, hx, action_embed_tensor, rew_embed_tensor)
+                actions_dist, values_tensor, hx, cx = self.policy(observations_tensor, hx, cx, action_embed_tensor, rew_embed_tensor)
                 actions = actions_dist.sample().cpu().numpy()
                 action_embed = action_embed_tensor.cpu().numpy()
                 rew_embed = rew_embed_tensor.cpu().numpy()
@@ -131,6 +133,7 @@ class LSTMLearner(object):
             # update hidden states
             dones_tensor = torch.from_numpy(dones.astype(np.float32)).to(device=self.device)
             hx[dones_tensor == 1] = 0.
+            cx[dones_tensor == 1] = 0.
             rew_embed_tensor[dones_tensor == 1] == 0.
 
             episodes.append(observations, actions, rewards, batch_ids, action_embed, rew_embed)

@@ -35,8 +35,7 @@ class CustomGameEnv(gym.Env):
 
     # TODO: figure this out
     def reset_task(self, task):
-        #self.game_state.game.easy_env_flag = 1.0 - self.game_state.game.easy_env_flag
-        self.game_state.game.easy_env_flag = random.choice([0,1])
+        self.game_state.game.easy_env_flag = 1.0 - self.game_state.game.easy_env_flag
 
     def render(self, mode='human'):
         img = self._get_image()
