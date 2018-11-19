@@ -52,7 +52,7 @@ class LSTMLearner(object):
         # Optimization Variables
         self.lr = lr
         self.tau = tau
-        self.optimizer = optim.RMSprop(self.policy.parameters(), lr=self.lr, alpha=0.99, epsilon=1e-5)
+        self.optimizer = optim.RMSprop(self.policy.parameters(), lr=self.lr, alpha=0.99, eps=1e-5)
         self.to(device)
         self.max_grad_norm = max_grad_norm
 
