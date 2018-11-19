@@ -4,6 +4,7 @@ from gym import spaces
 from gym.utils import seeding
 from ple import PLE
 import os
+import random
 
 class CustomGameEnv(gym.Env):
     def __init__(self, task={}):
@@ -34,7 +35,8 @@ class CustomGameEnv(gym.Env):
 
     # TODO: figure this out
     def reset_task(self, task):
-        self.game_state.game.easy_env_flag = 1.0 - self.game_state.game.easy_env_flag
+        #self.game_state.game.easy_env_flag = 1.0 - self.game_state.game.easy_env_flag
+        self.game_state.game.easy_env_flag = random.choice([0,1])
 
     def render(self, mode='human'):
         img = self._get_image()
