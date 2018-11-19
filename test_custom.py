@@ -37,13 +37,14 @@ def evaluate(env, policy, device, test_eps=10, render=False, random=False):
         action_embed_tensor[:, 0] = 1.
         rew_embed_tensor = torch.zeros(1, 2).to(device=device)
         hx = torch.zeros(1, 256).to(device=device)
+        cx = torch.zeros(1, 256).to(device=device)
         total_rew = 0; tstep = 0
 
         while not done:
             if render:
                 env.render()
             obs_tensor = torch.from_numpy(np.array(obs)[None]).to(device=device)
-            action_dist, value_tensor, hx = policy(obs_tensor, hx, action_embed_tensor, rew_embed_tensor)
+            action_dist, value_tensor, hx, cx = policy(obs_tensor, hx, cx, action_embed_tensor, rew_embed_tensor)
             action = action_dist.sample().cpu().numpy()
 
             if random:

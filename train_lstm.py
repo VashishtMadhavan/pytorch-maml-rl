@@ -58,7 +58,7 @@ if __name__ == '__main__':
         help='value of the discount factor for GAE')
     parser.add_argument('--vf_coef', type=float, default=0.5,
         help='coefficient for value function portion of loss')
-    parser.add_argument('--batch-size', type=int, default=160,
+    parser.add_argument('--batch-size', type=int, default=120,
         help='number of episodes to estimate gradient')
     parser.add_argument('--lr', type=float, default=1e-4,
         help='learning rate for the LSTM network')
