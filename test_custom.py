@@ -31,10 +31,11 @@ def evaluate(env, policy, device, test_eps=10, render=False, random=False):
     num_actions = env.action_space.n
     ep_rews = []; ep_steps = []
     for t in range(test_eps):
+        env.unwrapped.reset_task(None)
         obs = env.reset(); done = False
-        action_embed_tensor = torch.zeros(1, num_actions).to(device=self.device)
+        action_embed_tensor = torch.zeros(1, num_actions).to(device=device)
         action_embed_tensor[:, 0] = 1.
-        rew_embed_tensor = torch.zeros(1, 2).to(device=self.device)
+        rew_embed_tensor = torch.zeros(1, 2).to(device=device)
         hx = torch.zeros(1, 256).to(device=device)
         total_rew = 0; tstep = 0
 
@@ -54,7 +55,7 @@ def evaluate(env, policy, device, test_eps=10, render=False, random=False):
             action_embed_temp[action[0]] = 1.
             action_embed_tensor = torch.from_numpy(action_embed_temp[None]).float().to(device=device)
 
-            rew_embed_tensor = torch.from_numpy(np.array([rew, float(done)])).float().to(device=device)
+            rew_embed_tensor = torch.from_numpy(np.array([rew, float(done)])[None]).float().to(device=device)
             total_rew += rew; tstep += 1
         ep_rews.append(total_rew); ep_steps.append(tstep)
     return ep_rews, ep_steps

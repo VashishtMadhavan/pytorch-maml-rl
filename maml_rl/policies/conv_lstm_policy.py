@@ -18,10 +18,9 @@ class ConvLSTMPolicy(nn.Module):
 
         self.conv1 = nn.Conv2d(input_size[-1], 16, kernel_size=8, stride=4)
         self.conv2 = nn.Conv2d(16, 32, kernel_size=4, stride=2)
-        self.fc = nn.Linear((9 * 9 * 32) + 256 + 2, 256)
+        self.fc = nn.Linear(9 * 9 * 32, 256)
 
-        self.act_fc = nn.Linear(self.output_size, 256)
-        self.gru = nn.GRUCell(256, 256)
+        self.gru = nn.GRUCell(256 + self.output_size + 2, 256)
         self.pi = nn.Linear(256, self.output_size)
         self.v = nn.Linear(256, 1)
 
@@ -31,14 +30,10 @@ class ConvLSTMPolicy(nn.Module):
         output = self.nonlinearity(self.conv1(output))
         output = self.nonlinearity(self.conv2(output))
         output = output.view(output.size(0), -1)
-
-        # action embedding
-        act_output = self.nonlinearity(self.act_fc(act_embedding))
+        output = self.nonlinearity(self.fc(output))
 
         # passing joint embedding through GRU
-        output = torch.cat((output, act_output, rew_embedding), dim=1)
-        output = self.nonlinearity(self.fc(output))
+        output = torch.cat((output, act_embedding, rew_embedding), dim=1)
         h_out = self.gru(output, hx)
-        logits = self.pi(h_out)
-        values = self.v(h_out)
-        return Categorical(logits=logits), values, h_out
+        output = h_out
+        return Categorical(logits=self.pi(output)), self.v(output), h_out
