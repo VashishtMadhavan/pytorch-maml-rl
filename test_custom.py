@@ -10,6 +10,7 @@ from maml_rl.policies.conv_lstm_policy import ConvLSTMPolicy
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--env-name", type=str, default='CustomGame-v0')
+    parser.add_argument("--test-eps", type=int, default=10)
     parser.add_argument("--checkpoint", type=str)
     parser.add_argument("--render", action="store_true")
     parser.add_argument("--random", action="store_true")
@@ -66,7 +67,7 @@ def main():
     env = gym.make(args.env_name)
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     policy = load_params(args.checkpoint, env, device)
-    episode_rew, episode_steps = evaluate(env, policy, device, render=args.render, random=args.random)
+    episode_rew, episode_steps = evaluate(env, policy, device, test_eps=args.test_eps, render=args.render, random=args.random)
 
     print("MeanRewards: ",  np.mean(episode_rew))
     print("MeanSteps: ", np.mean(episode_steps))
