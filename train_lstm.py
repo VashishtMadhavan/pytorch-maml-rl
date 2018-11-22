@@ -24,7 +24,7 @@ def main(args):
         json.dump(config, f, indent=2)
 
     learner = LSTMLearner(env_name=args.env_name, batch_size=args.batch_size,
-        num_workers=args.num_workers, gamma=args.gamma,
+        num_workers=args.num_workers, num_batches=args.num_batches, gamma=args.gamma,
         lr=args.lr, tau=args.tau, vf_coef=args.vf_coef, device=args.device)
     """
     Training Loop
@@ -58,7 +58,7 @@ if __name__ == '__main__':
         help='value of the discount factor for GAE')
     parser.add_argument('--vf_coef', type=float, default=0.25,
         help='coefficient for value function portion of loss')
-    parser.add_argument('--batch-size', type=int, default=120,
+    parser.add_argument('--batch-size', type=int, default=180,
         help='number of episodes to estimate gradient')
     parser.add_argument('--lr', type=float, default=7e-4,
         help='learning rate for the LSTM network')

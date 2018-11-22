@@ -7,6 +7,7 @@ from maml_rl.utils.torch_utils import (weighted_mean, detach_distribution,
                                        weighted_normalize)
 from maml_rl.utils.optimization import conjugate_gradient
 import torch.optim as optim
+from torch.optim.lr_scheduler import LambdaLR
 
 import gym
 import multiprocessing as mp
@@ -30,7 +31,7 @@ class LSTMLearner(object):
     """
     LSTM Learner using A2C to Train
     """
-    def __init__(self, env_name, batch_size, num_workers,
+    def __init__(self, env_name, batch_size, num_workers, num_batches=1000,
                 gamma=0.95, lr=0.01, tau=1.0, ent_coef=.01, vf_coef=0.5, device='cpu',
                 max_grad_norm=0.5):
         self.vf_coef = vf_coef
@@ -40,6 +41,7 @@ class LSTMLearner(object):
 
         # Sampler variables
         self.env_name = env_name
+        self.num_batches = num_batches
         self.batch_size = batch_size
         self.num_workers = num_workers
         self.queue = mp.Queue()
@@ -53,6 +55,9 @@ class LSTMLearner(object):
         self.lr = lr
         self.tau = tau
         self.optimizer = optim.RMSprop(self.policy.parameters(), lr=self.lr, alpha=0.99, eps=1e-5)
+
+        scheduler_lambda = lambda epoch: (1. - (float(epoch) / self.num_batches))
+        self.scheduler = LambdaLR(optimizer=self.optimizer, lr_lambda=scheduler_lambda)
         self.to(device)
         self.max_grad_norm = max_grad_norm
 
@@ -88,6 +93,7 @@ class LSTMLearner(object):
         """
         Adapt the parameters of the policy network to a new set of examples
         """
+        self.scheduler.step() # updates learning rate
         self.optimizer.zero_grad()
         loss = self.loss(episodes)
         loss.backward()
