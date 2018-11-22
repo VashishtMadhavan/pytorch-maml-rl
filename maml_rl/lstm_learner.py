@@ -54,10 +54,9 @@ class LSTMLearner(object):
         # Optimization Variables
         self.lr = lr
         self.tau = tau
-        self.optimizer = optim.RMSprop(self.policy.parameters(), lr=self.lr, alpha=0.99, eps=1e-5)
+        #self.optimizer = optim.RMSprop(self.policy.parameters(), lr=self.lr, alpha=0.99, eps=1e-5)
+        self.optimizer = optim.Adam(self.policy.parameters(), lr=self.lr, eps=1e-5)
 
-        scheduler_lambda = lambda epoch: (1. - (float(epoch) / self.num_batches))
-        self.scheduler = LambdaLR(optimizer=self.optimizer, lr_lambda=scheduler_lambda)
         self.to(device)
         self.max_grad_norm = max_grad_norm
 
@@ -93,7 +92,6 @@ class LSTMLearner(object):
         """
         Adapt the parameters of the policy network to a new set of examples
         """
-        self.scheduler.step() # updates learning rate
         self.optimizer.zero_grad()
         loss = self.loss(episodes)
         loss.backward()
