@@ -1,0 +1,30 @@
+#ailabs-pytorch-maml-rl
+#latest
+#.
+
+FROM localhost:5000/opus-deep-learning:master-prod-2018_9_20_18_2_31
+
+RUN /bin/bash -c "cd /home && \
+    apt-get update && \
+    apt-get install -y tmux cmake && \
+    pip install virtualenv && \
+    virtualenv -p python3 env --system-site-packages && \
+    source /home/env/bin/activate && \
+    pip install --upgrade pip && \
+    pip install click redis PyYAML cloudpickle cassandra-driver scipy setproctitle && \
+    rm -rf /var/lib/apt/lists/*"
+
+RUN /bin/bash -c "mkdir /home/work"
+COPY ./ailabs_util /home/work/ailabs_util
+
+# Install requirements
+RUN /bin/bash -c "source /home/env/bin/activate && \
+    cd /home/work && \
+    pip install -r requirements.txt && \
+    pip install /home/work/ailabs_util"
+
+COPY ./maml_rl /home/work/maml_rl
+COPY ./*py /home/work/
+
+ENV LC_ALL C.UTF-8
+ENV LANG C.UTF-8
