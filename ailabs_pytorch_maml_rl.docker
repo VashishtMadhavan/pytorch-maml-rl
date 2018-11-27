@@ -6,12 +6,12 @@ FROM localhost:5000/opus-deep-learning:master-prod-2018_9_20_18_2_31
 
 RUN /bin/bash -c "cd /home && \
     apt-get update && \
-    apt-get install -y tmux cmake && \
+    apt-get install -y tmux cmake python-opencv && \
     pip install virtualenv && \
     virtualenv -p python3 env --system-site-packages && \
     source /home/env/bin/activate && \
     pip install --upgrade pip && \
-    pip install click redis PyYAML cloudpickle cassandra-driver scipy setproctitle tensorboardX && \
+    pip install click redis PyYAML cloudpickle cassandra-driver scipy opencv-python pygame setproctitle tensorboardX && \
     rm -rf /var/lib/apt/lists/*"
 
 RUN /bin/bash -c "mkdir /home/work"
