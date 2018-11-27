@@ -41,7 +41,7 @@ def main(args):
         with open(os.path.join(save_folder,
                 'policy-{0}.pt'.format(batch)), 'wb') as f:
             torch.save(learner.policy.state_dict(), f)
-    learner.envs.closer()
+    learner.envs.close()
 
 
 if __name__ == '__main__':
@@ -59,17 +59,17 @@ if __name__ == '__main__':
         help='value of the discount factor for GAE')
     parser.add_argument('--vf_coef', type=float, default=0.25,
         help='coefficient for value function portion of loss')
-    parser.add_argument('--batch-size', type=int, default=180,
+    parser.add_argument('--batch-size', type=int, default=360,
         help='number of episodes to estimate gradient')
     parser.add_argument('--lr', type=float, default=7e-4,
         help='learning rate for the LSTM network')
-    parser.add_argument('--num-batches', type=int, default=1000,
+    parser.add_argument('--num-batches', type=int, default=5000,
         help='number of batches')    
 
     # Miscellaneous
     parser.add_argument('--output-folder', type=str, default='lstm',
         help='name of the output folder')
-    parser.add_argument('--num-workers', type=int, default=20,
+    parser.add_argument('--num-workers', type=int, default=60,
         help='number of workers for trajectories sampling')
     parser.add_argument('--device', type=str, default='cpu',
         help='set the device (cpu or cuda)')
