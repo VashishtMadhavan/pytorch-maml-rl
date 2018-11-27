@@ -21,13 +21,20 @@ register(
     max_episode_steps=10
 )
 
-# CustomGame
+# Pygames
 # ----------------------------------------
 
 register(
     'CustomGame-v0',
     entry_point='maml_rl.envs.utils:universe_wrapper',
     kwargs={'entry_point': 'maml_rl.envs.game:CustomGameEnv'},
+    max_episode_steps=100
+)
+
+register(
+    'OriginalGame-v0',
+    entry_point='maml_rl.envs.utils:universe_wrapper',
+    kwargs={'entry_point': 'maml_rl.envs.orig_game:OriginalGameEnv'},
     max_episode_steps=100
 )
 
