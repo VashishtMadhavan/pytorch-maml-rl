@@ -11,7 +11,7 @@ RUN /bin/bash -c "cd /home && \
     virtualenv -p python3 env --system-site-packages && \
     source /home/env/bin/activate && \
     pip install --upgrade pip && \
-    pip install click redis PyYAML cloudpickle cassandra-driver scipy setproctitle gym>=0.10.5 && \
+    pip install click redis PyYAML cloudpickle cassandra-driver scipy setproctitle tensorboardX && \
     rm -rf /var/lib/apt/lists/*"
 
 RUN /bin/bash -c "mkdir /home/work"
@@ -24,7 +24,9 @@ RUN /bin/bash -c "source /home/env/bin/activate && \
     cd /home/work && \
     git clone https://github.com/VashishtMadhavan/PyGame-Learning-Environment.git && \
     pip install -e '/home/work/PyGame-Learning-Environment' && \
-    pip install /home/work/ailabs_util"
+    pip install /home/work/ailabs_util && \ 
+    git clone https://github.com/VashishtMadhavan/gym.git && \
+    pip install -e '/home/work/gym'"
 
 ENV LC_ALL C.UTF-8
 ENV LANG C.UTF-8
