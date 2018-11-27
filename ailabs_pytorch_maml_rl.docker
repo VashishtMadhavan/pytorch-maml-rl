@@ -20,6 +20,8 @@ COPY ./ailabs_util /home/work/ailabs_util
 # Install requirements
 RUN /bin/bash -c "source /home/env/bin/activate && \
     cd /home/work && \
+    git clone https://github.com/VashishtMadhavan/PyGame-Learning-Environment.git && \
+    pip install -e '/home/work/PyGame-Learning-Environment' && \
     pip install -r requirements.txt && \
     pip install /home/work/ailabs_util"
 
