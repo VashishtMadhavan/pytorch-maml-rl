@@ -8,12 +8,21 @@ from tqdm import tqdm
 from maml_rl.lstm_learner import LSTMLearner
 from tensorboardX import SummaryWriter
 
+def hdfs_save(hdfs_dir, filename):
+    os.system('/opt/hadoop/latest/bin/hdfs dfs -copyFromLocal -f {} {}'.format(filename, hdfs_dir))
+
+def hdfs_mkdir(hdfs_new_dir):
+    os.system('/opt/hadoop/latest/bin/hdfs dfs -mkdir -p {}'.format(hdfs_new_dir))
+
 def total_rewards(episodes_rewards, aggregation=torch.mean):
     rewards = torch.mean(torch.stack([aggregation(torch.sum(rewards, dim=0))
         for rewards in episodes_rewards], dim=0))
     return rewards.item()
 
 def main(args):
+    if args.hdfs:
+        hdfs_folder = '/ailabs/vash/{}/'.format(args.output_folder)
+        hdfs_mkdir(hdfs_folder)
     writer = SummaryWriter('./logs/{0}'.format(args.output_folder))
     save_folder = './saves/{0}'.format(args.output_folder)
     if not os.path.exists(save_folder):
@@ -42,7 +51,9 @@ def main(args):
                 'policy-{0}.pt'.format(batch)), 'wb') as f:
             torch.save(learner.policy.state_dict(), f)
     learner.envs.close()
-
+    if args.hdfs:
+        hdfs_save(hdfs_folder, 'saves/')
+        hdfs_save(hdfs_folder, 'logs/')
 
 if __name__ == '__main__':
     import argparse
@@ -53,6 +64,7 @@ if __name__ == '__main__':
     # General
     parser.add_argument('--env-name', type=str,
         help='name of the environment')
+    parser.add_argument('--hdfs', action='store_false')
     parser.add_argument('--gamma', type=float, default=0.99,
         help='value of the discount factor gamma')
     parser.add_argument('--tau', type=float, default=1.0,

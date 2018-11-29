@@ -28,14 +28,14 @@ register(
     'CustomGame-v0',
     entry_point='maml_rl.envs.utils:universe_wrapper',
     kwargs={'entry_point': 'maml_rl.envs.game:CustomGameEnv'},
-    max_episode_steps=100
+    max_episode_steps=150
 )
 
 register(
     'OriginalGame-v0',
     entry_point='maml_rl.envs.utils:universe_wrapper',
     kwargs={'entry_point': 'maml_rl.envs.orig_game:OriginalGameEnv'},
-    max_episode_steps=100
+    max_episode_steps=150
 )
 
 # Mujoco
