@@ -10,7 +10,7 @@ from maml_rl.policies.conv_lstm_policy import ConvLSTMPolicy
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--env-name", type=str, default='OriginalGame-v0')
+    parser.add_argument("--env-name", type=str, default='customgame-v0')
     parser.add_argument("--test-eps", type=int, default=10)
     parser.add_argument("--checkpoint", type=str)
     parser.add_argument("--render", action="store_true")

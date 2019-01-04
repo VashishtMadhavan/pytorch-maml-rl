@@ -32,12 +32,13 @@ class LSTMLearner(object):
     LSTM Learner using A2C to Train
     """
     def __init__(self, env_name, batch_size, num_workers, num_batches=1000,
-                gamma=0.95, lr=0.01, tau=1.0, ent_coef=.01, vf_coef=0.5, device='cpu',
+                gamma=0.95, lr=0.01, tau=1.0, ent_coef=.01, vf_coef=0.5, lstm_size=256, device='cpu',
                 max_grad_norm=0.5):
         self.vf_coef = vf_coef
         self.ent_coef = ent_coef
         self.gamma = gamma
         self.device = device
+        self.lstm_size = lstm_size
 
         # Sampler variables
         self.env_name = env_name
@@ -54,8 +55,7 @@ class LSTMLearner(object):
         # Optimization Variables
         self.lr = lr
         self.tau = tau
-        #self.optimizer = optim.RMSprop(self.policy.parameters(), lr=self.lr, alpha=0.99, eps=1e-5)
-        self.optimizer = optim.Adam(self.policy.parameters(), lr=self.lr, eps=1e-5)
+        self.optimizer = optim.RMSprop(self.policy.parameters(), lr=self.lr, alpha=0.99, eps=1e-5)
 
         self.to(device)
         self.max_grad_norm = max_grad_norm
@@ -67,8 +67,8 @@ class LSTMLearner(object):
         """
         T = episodes.observations.size(0)
         values, log_probs, entropy = [], [], []
-        hx = torch.zeros(self.batch_size, 256).to(device=self.device)
-        cx = torch.zeros(self.batch_size, 256).to(device=self.device)
+        hx = torch.zeros(self.batch_size, self.lstm_size).to(device=self.device)
+        cx = torch.zeros(self.batch_size, self.lstm_size).to(device=self.device)
         for t in range(T):
             pi_t, v_t, hx, cx = self.policy(episodes.observations[t], hx, cx, episodes.action_embeds[t], episodes.rew_embeds[t])
             values.append(v_t)
@@ -116,8 +116,8 @@ class LSTMLearner(object):
         action_embed_tensor = torch.zeros(self.num_workers, num_actions).to(device=self.device)
         action_embed_tensor[:, 0] = 1.
         rew_embed_tensor = torch.zeros(self.num_workers, 2).to(device=self.device)
-        hx = torch.zeros(self.num_workers, 256).to(device=self.device)
-        cx = torch.zeros(self.num_workers, 256).to(device=self.device)
+        hx = torch.zeros(self.num_workers, self.lstm_size).to(device=self.device)
+        cx = torch.zeros(self.num_workers, self.lstm_size).to(device=self.device)
 
         while (not all(dones)) or (not self.queue.empty()):
             with torch.no_grad():
@@ -128,13 +128,12 @@ class LSTMLearner(object):
                 rew_embed = rew_embed_tensor.cpu().numpy()
             new_observations, rewards, dones, new_batch_ids, _ = self.envs.step(actions)
 
-            # update embeddings
-            # this basically sets the action embedding to the 0 embedding if done
+            # Update embeddings when episode is done
             actions_mask = ((1. - dones.astype(np.float32)) * actions).astype(np.int32)
             action_embed_tensor = torch.from_numpy(one_hot(actions_mask, num_actions)).float().to(device=self.device)
             rew_embed_tensor = torch.from_numpy(np.hstack((rewards[:, None], dones[:, None]))).float().to(device=self.device)
 
-            # update hidden states
+            # Update hidden states
             dones_tensor = torch.from_numpy(dones.astype(np.float32)).to(device=self.device)
             hx[dones_tensor == 1] = 0.
             cx[dones_tensor == 1] = 0.

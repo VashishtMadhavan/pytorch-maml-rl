@@ -6,13 +6,9 @@ import json
 from tqdm import tqdm
 
 from maml_rl.lstm_learner import LSTMLearner
-from tensorboardX import SummaryWriter
 
 def hdfs_save(hdfs_dir, filename):
     os.system('/opt/hadoop/latest/bin/hdfs dfs -copyFromLocal -f {} {}'.format(filename, hdfs_dir))
-
-def hdfs_mkdir(hdfs_new_dir):
-    os.system('/opt/hadoop/latest/bin/hdfs dfs -mkdir -p {}'.format(hdfs_new_dir))
 
 def total_rewards(episodes_rewards, aggregation=torch.mean):
     rewards = torch.mean(torch.stack([aggregation(torch.sum(rewards, dim=0))
@@ -20,13 +16,13 @@ def total_rewards(episodes_rewards, aggregation=torch.mean):
     return rewards.item()
 
 def main(args):
-    if args.hdfs:
-        hdfs_folder = '/ailabs/vash/{}/'.format(args.output_folder)
-        hdfs_mkdir(hdfs_folder)
-    writer = SummaryWriter('./logs/{0}'.format(args.output_folder))
-    save_folder = './saves/{0}'.format(args.output_folder)
+    log_folder = '{0}/logs/'.format(args.output_folder)
+    save_folder = '{0}/saves/'.format(args.output_folder)
+    if os.path.exists(log_folder):
+        os.makedirs(log_folder)
     if not os.path.exists(save_folder):
         os.makedirs(save_folder)
+
     with open(os.path.join(save_folder, 'config.json'), 'w') as f:
         config = {k: v for (k, v) in vars(args).items() if k != 'device'}
         config.update(device=args.device.type)
@@ -35,6 +31,10 @@ def main(args):
     learner = LSTMLearner(env_name=args.env_name, batch_size=args.batch_size,
         num_workers=args.num_workers, num_batches=args.num_batches, gamma=args.gamma,
         lr=args.lr, tau=args.tau, vf_coef=args.vf_coef, device=args.device)
+
+    with open(os.path.join(log_folder, 'log.txt'), 'wb') as f:
+        f.write("EpisodeReward\n")
+
     """
     Training Loop
     """
@@ -42,18 +42,21 @@ def main(args):
         episodes = learner.sample()
         learner.step(episodes)
 
-        # Tensorboard
-        writer.add_scalar('total_rewards/reward',
-            total_rewards([episodes.rewards]), batch)
+        # Writing Episode Rewards
+        tot_rew = total_rewards([episodes.rewards])
+        with open(os.path.join(log_folder, 'log.txt'), 'a') as f:
+            f.write('{}\n'.format(tot_rew))
+
+        tsteps = (batch + 1) * args.batch_size * 200
+        print("Total Rew: {0} Batch: {1}  Timesteps: {2}".format(tot_rew, batch, tsteps))
 
         # Save policy network
-        with open(os.path.join(save_folder,
-                'policy-{0}.pt'.format(batch)), 'wb') as f:
+        with open(os.path.join(save_folder, 'policy-{0}.pt'.format(batch)), 'wb') as f:
             torch.save(learner.policy.state_dict(), f)
+
     learner.envs.close()
     if args.hdfs:
-        hdfs_save(hdfs_folder, 'saves/')
-        hdfs_save(hdfs_folder, 'logs/')
+        hdfs_save('/ailabs/vash/custom_game/', args.output_folder + '/')
 
 if __name__ == '__main__':
     import argparse

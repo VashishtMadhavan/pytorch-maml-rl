@@ -17,11 +17,12 @@ class ConvLSTMPolicy(nn.Module):
         self.output_size = output_size
         self.nonlinearity = nonlinearity
 
-        self.conv1 = nn.Conv2d(input_size[-1], 16, kernel_size=8, stride=4)
-        self.conv2 = nn.Conv2d(16, 32, kernel_size=4, stride=2)
-        self.fc = nn.Linear(9 * 9 * 32, 256)
+        self.conv1 = nn.Conv2d(input_size[-1], 32, kernel_size=8, stride=4)
+        self.conv2 = nn.Conv2d(32, 64, kernel_size=4, stride=2)
+        self.conv3 = nn.Conv2d(64, 64, kernel_size=3, stride=1)
+        self.fc = nn.Linear(9 * 9 * 64, 512)
 
-        self.lstm = nn.LSTMCell(256 + self.output_size + 2, 256)
+        self.lstm = nn.LSTMCell(512 + self.output_size + 2, 256)
         self.pi = nn.Linear(256, self.output_size)
         self.v = nn.Linear(256, 1)
 
@@ -30,6 +31,7 @@ class ConvLSTMPolicy(nn.Module):
         output = x.permute(0, 3, 1, 2)
         output = self.nonlinearity(self.conv1(output))
         output = self.nonlinearity(self.conv2(output))
+        output = self.nonlinearity(self.conv3(output))
         output = output.view(output.size(0), -1)
         output = self.nonlinearity(self.fc(output))
 
