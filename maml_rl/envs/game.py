@@ -13,7 +13,7 @@ class CustomGameEnv(gym.Env):
 
         import importlib
         game_module = importlib.import_module('ple.games.customgame')
-        game = getattr(game_module, 'customgame')(vec=[2, 2], difficulty=0, astar=False)
+        game = getattr(game_module, 'customgame')(difficulty=0)
 
         self.game_state = PLE(game, fps=30, display_screen=False)
         self._action_set = self.game_state.getActionSet()

@@ -18,7 +18,7 @@ def total_rewards(episodes_rewards, aggregation=torch.mean):
 def main(args):
     log_folder = '{0}/logs/'.format(args.output_folder)
     save_folder = '{0}/saves/'.format(args.output_folder)
-    if os.path.exists(log_folder):
+    if not os.path.exists(log_folder):
         os.makedirs(log_folder)
     if not os.path.exists(save_folder):
         os.makedirs(save_folder)
@@ -32,8 +32,8 @@ def main(args):
         num_workers=args.num_workers, num_batches=args.num_batches, gamma=args.gamma,
         lr=args.lr, tau=args.tau, vf_coef=args.vf_coef, device=args.device)
 
-    with open(os.path.join(log_folder, 'log.txt'), 'wb') as f:
-        f.write("EpisodeReward\n")
+    with open(os.path.join(log_folder, 'log.txt'), 'a') as f:
+        print("EpisodeReward", file=f)
 
     """
     Training Loop
@@ -45,7 +45,7 @@ def main(args):
         # Writing Episode Rewards
         tot_rew = total_rewards([episodes.rewards])
         with open(os.path.join(log_folder, 'log.txt'), 'a') as f:
-            f.write('{}\n'.format(tot_rew))
+            print('{}'.format(tot_rew), file=f)
 
         tsteps = (batch + 1) * args.batch_size * 200
         print("Total Rew: {0} Batch: {1}  Timesteps: {2}".format(tot_rew, batch, tsteps))
@@ -74,7 +74,7 @@ if __name__ == '__main__':
         help='value of the discount factor for GAE')
     parser.add_argument('--vf_coef', type=float, default=0.25,
         help='coefficient for value function portion of loss')
-    parser.add_argument('--batch-size', type=int, default=360,
+    parser.add_argument('--batch-size', type=int, default=60,
         help='number of episodes to estimate gradient')
     parser.add_argument('--lr', type=float, default=7e-4,
         help='learning rate for the LSTM network')
@@ -82,19 +82,14 @@ if __name__ == '__main__':
         help='number of batches')    
 
     # Miscellaneous
-    parser.add_argument('--output-folder', type=str, default='lstm',
+    parser.add_argument('--output-folder', type=str, default='debug',
         help='name of the output folder')
     parser.add_argument('--num-workers', type=int, default=60,
         help='number of workers for trajectories sampling')
     parser.add_argument('--device', type=str, default='cpu',
         help='set the device (cpu or cuda)')
-
     args = parser.parse_args()
-    # Create logs and saves folder if they don't exist
-    if not os.path.exists('./logs'):
-        os.makedirs('./logs')
-    if not os.path.exists('./saves'):
-        os.makedirs('./saves')
+
     # Device
     args.device = torch.device(args.device
         if torch.cuda.is_available() else 'cpu')
