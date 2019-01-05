@@ -143,7 +143,7 @@ class LSTMBatchEpisodes(BatchEpisodes):
             logprobs = np.zeros((len(self), self.batch_size), dtype=np.float32)
             for i in range(self.batch_size):
                 length = len(self._logprob_list[i])
-                logprobs[:length, i] = np.stack(self._logprob[i], axis=0)
+                logprobs[:length, i] = np.stack(self._logprob_list[i], axis=0)
             self._logprob = torch.from_numpy(logprobs).to(self.device)
         return self._logprob
 
