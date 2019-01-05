@@ -110,10 +110,12 @@ class LSTMBatchEpisodes(BatchEpisodes):
         self._action_embed_list = [[] for _ in range(batch_size)]
         self._rew_embed_list = [[] for _ in range(batch_size)]
         self._logprob_list = [[] for _ in range(batch_size)]
+        self._old_value_list = [[] for _ in range(batch_size)]
 
         self._action_embed = None
         self._rew_embed = None
         self._logprob = None
+        self._old_value = None
 
     @property
     def action_embeds(self):
@@ -147,9 +149,21 @@ class LSTMBatchEpisodes(BatchEpisodes):
             self._logprob = torch.from_numpy(logprobs).to(self.device)
         return self._logprob
 
-    def append(self, observations, actions, rewards, batch_ids, log_probs, action_embeds, rew_embeds):
-        for observation, action, reward, batch_id, log_prob, action_embed, rew_embed in zip(
-                observations, actions, rewards, batch_ids, log_probs, action_embeds, rew_embeds):
+    @property
+    def old_values(self):
+        if self._old_value is None:
+            values = np.zeros((len(self), self.batch_size), dtype=np.float32)
+            for i in range(self.batch_size):
+                length = len(self._old_value_list[i])
+                values[:length, i] = np.stack(self._old_value_list[i], axis=0)
+            self._old_value = torch.from_numpy(values).to(self.device)
+        return self._old_value
+
+
+
+    def append(self, observations, actions, rewards, batch_ids, log_probs, old_values, action_embeds, rew_embeds):
+        for observation, action, reward, batch_id, log_prob, old_value, action_embed, rew_embed in zip(
+                observations, actions, rewards, batch_ids, log_probs, old_values, action_embeds, rew_embeds):
             if batch_id is None:
                 continue
             self._observations_list[batch_id].append(observation.astype(np.float32))
@@ -158,3 +172,4 @@ class LSTMBatchEpisodes(BatchEpisodes):
             self._action_embed_list[batch_id].append(action_embed.astype(np.float32))
             self._rew_embed_list[batch_id].append(rew_embed.astype(np.float32))
             self._logprob_list[batch_id].append(log_prob.astype(np.float32))
+            self._old_value_list[batch_id].append(old_value.astype(np.float32))

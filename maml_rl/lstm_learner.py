@@ -94,36 +94,44 @@ class LSTMLearner(object):
 
 
     def surrogate_loss(self, episodes, inds=None):
+        """
+        PPO Surrogate Loss
+        """
         T = episodes.observations.size(0)
-        values, log_probs, entropy = [], [], []
+        values, log_ratios, entropy = [], [], []
         hx = torch.zeros(self.batch_size, self.lstm_size).to(device=self.device)
         cx = torch.zeros(self.batch_size, self.lstm_size).to(device=self.device)
         for t in range(T):
-            pi_t, v_t, hx, cx = self.policy(observations[t], hx, cx, episodes.action_embeds[t], episodes.rew_embeds[t])
+            pi_t, v_t, hx, cx = self.policy(episodes.observations[t], hx, cx, episodes.action_embeds[t], episodes.rew_embeds[t])
             values.append(v_t)
             entropy.append(pi_t.entropy())
-            log_ratio.append(pi_t.log_prob(episodes.actions[t]) - episodes.logprobs[t])
-        log_ratio = torch.stack(log_ratio); values = torch.stack(values); entropy = torch.stack(entropy)
+            log_ratios.append(pi_t.log_prob(episodes.actions[t]) - episodes.logprobs[t])
+        log_ratios = torch.stack(log_ratios); values = torch.stack(values); entropy = torch.stack(entropy)
 
         advantages = episodes.gae(values, tau=self.tau)
         advantages = weighted_normalize(advantages, weights=episodes.mask)
 
-        if log_ratio.dim() > 2:
-            log_ratio = torch.sum(log_ratio, dim=2)
+        if log_ratios.dim() > 2:
+            log_ratios = torch.sum(log_ratios, dim=2)
 
-        ratio = torch.exp(log_ratio)
+        # clipped pg loss
+        ratio = torch.exp(log_ratios)
         pg_loss1 = -advantages * ratio
         pg_loss2 = -advantages * torch.clamp(ratio, min=1.0 - self.clip_frac, max=1.0 + self.clip_frac)
 
-        # TODO: potentially restrict value func deviation as well
+        # clipped value loss
+        values_clipped = episodes.old_values + torch.clamp(values.squeeze() - episodes.old_values, min=-self.clip_frac, max=self.clip_frac)
+        vf_loss1 = (values.squeeze() - episodes.returns) ** 2
+        vf_loss2 = (values_clipped - episodes.returns) ** 2
+
         if not inds:
             pg_loss = weighted_mean(torch.max(pg_loss1, pg_loss2), dim=0, weights=episodes.mask)
-            vf_loss = 0.5 * weighted_mean((values.squeeze() - episodes.returns) ** 2, dim=0, weights=episodes.mask)
+            vf_loss = 0.5 * weighted_mean(torch.max(vf_loss1, vf_loss2), dim=0, weights=episodes.mask)
             entropy_loss = weighted_mean(entropy, dim=0, weights=episodes.mask)
         else:
-            masks = episodes.mask[:, ind]
-            pg_loss = weighted_mean(torch.max(pg_loss1, pg_loss2)[:, ind], dim=0, weights=masks)
-            vf_loss = 0.5 * weighted_mean((values.squeeze()[:, inds] - episodes.returns[:, inds]) ** 2, dim=0, weights=masks)
+            masks = episodes.mask[:, inds]
+            pg_loss = weighted_mean(torch.max(pg_loss1, pg_loss2)[:, inds], dim=0, weights=masks)
+            vf_loss = 0.5 * weighted_mean(torch.max(vf_loss1, vf_loss2)[:, inds], dim=0, weights=masks)
             entropy_loss = weighted_mean(entropy[:, inds], dim=0, weights=masks)
         return pg_loss + self.vf_coef * vf_loss - self.ent_coef * entropy_loss
 
@@ -175,6 +183,7 @@ class LSTMLearner(object):
                 actions = actions_dist.sample()
                 log_probs = actions_dist.log_prob(actions).cpu().numpy()
                 actions = actions.cpu().numpy()
+                old_values = values_tensor.squeeze().cpu().numpy()
                 action_embed = action_embed_tensor.cpu().numpy()
                 rew_embed = rew_embed_tensor.cpu().numpy()
             new_observations, rewards, dones, new_batch_ids, _ = self.envs.step(actions)
@@ -190,7 +199,7 @@ class LSTMLearner(object):
             cx[dones_tensor == 1] = 0.
             rew_embed_tensor[dones_tensor == 1] == 0.
 
-            episodes.append(observations, actions, rewards, batch_ids, log_probs, action_embed, rew_embed)
+            episodes.append(observations, actions, rewards, batch_ids, log_probs, old_values, action_embed, rew_embed)
             observations, batch_ids = new_observations, new_batch_ids
         return episodes
 

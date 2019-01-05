@@ -40,7 +40,11 @@ def main(args):
     """
     for batch in tqdm(range(args.num_batches)):
         episodes = learner.sample()
-        learner.step(episodes)
+        if args.ppo:
+            learner.surrogate_step(episodes)
+        else:
+            # Regular A2C step
+            learner.step(episodes)
 
         # Writing Episode Rewards
         tot_rew = total_rewards([episodes.rewards])
@@ -67,6 +71,7 @@ if __name__ == '__main__':
     # General
     parser.add_argument('--env-name', type=str,
         help='name of the environment')
+    parser.add_argument('--ppo', action='store_true')
     parser.add_argument('--hdfs', action='store_false')
     parser.add_argument('--gamma', type=float, default=0.99,
         help='value of the discount factor gamma')
@@ -74,7 +79,7 @@ if __name__ == '__main__':
         help='value of the discount factor for GAE')
     parser.add_argument('--vf_coef', type=float, default=0.25,
         help='coefficient for value function portion of loss')
-    parser.add_argument('--batch-size', type=int, default=60,
+    parser.add_argument('--batch-size', type=int, default=360,
         help='number of episodes to estimate gradient')
     parser.add_argument('--lr', type=float, default=7e-4,
         help='learning rate for the LSTM network')
