@@ -34,13 +34,12 @@ def evaluate(env, policy, device, test_eps=10, render=False, random=False, recor
     num_actions = env.action_space.n; total_frames = []
     ep_rews = []; ep_steps = []
     for t in range(test_eps):
-        env.unwrapped.reset_task(None)
         obs = env.reset(); done = False
         action_embed_tensor = torch.zeros(1, num_actions).to(device=device)
         action_embed_tensor[:, 0] = 1.
         rew_embed_tensor = torch.zeros(1, 2).to(device=device)
-        hx = torch.zeros(1, 256).to(device=device)
-        cx = torch.zeros(1, 256).to(device=device)
+        hx = torch.zeros(1, policy.lstm_size).to(device=device)
+        cx = torch.zeros(1, policy.lstm_size).to(device=device)
         total_rew = 0; tstep = 0
 
         while not done:
