@@ -16,10 +16,7 @@ def total_rewards(episodes_rewards, aggregation=torch.mean):
     return rewards.item()
 
 def main(args):
-    log_folder = '{0}/logs/'.format(args.output_folder)
     save_folder = '{0}/saves/'.format(args.output_folder)
-    if not os.path.exists(log_folder):
-        os.makedirs(log_folder)
     if not os.path.exists(save_folder):
         os.makedirs(save_folder)
 
@@ -28,19 +25,20 @@ def main(args):
         config.update(device=args.device.type)
         json.dump(config, f, indent=2)
 
-    learner = LSTMLearner(env_name=args.env_name, batch_size=args.batch_size,
-        num_workers=args.num_workers, num_batches=args.num_batches, gamma=args.gamma,
+    learner = LSTMLearner(env_name=args.env, batch_size=args.batch_size,
+        num_workers=args.num_workers, num_batches=args.train_iters, gamma=args.gamma,
         lr=args.lr, tau=args.tau, vf_coef=args.vf_coef, device=args.device)
 
-    with open(os.path.join(log_folder, 'log.txt'), 'a') as f:
+    with open('{0}/log.txt'.format(args.output_folder), 'a') as f:
         print("EpisodeReward", file=f)
 
     """
     Training Loop
     """
-    for batch in tqdm(range(args.num_batches)):
+    for batch in tqdm(range(args.train_iters)):
         episodes = learner.sample()
         if args.ppo:
+            # PPO step
             learner.surrogate_step(episodes)
         else:
             # Regular A2C step
@@ -48,7 +46,7 @@ def main(args):
 
         # Writing Episode Rewards
         tot_rew = total_rewards([episodes.rewards])
-        with open(os.path.join(log_folder, 'log.txt'), 'a') as f:
+        with open('{0}/log.txt'.format(args.output_folder), 'a') as f:
             print('{}'.format(tot_rew), file=f)
 
         tsteps = (batch + 1) * args.batch_size * 200
@@ -69,30 +67,20 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Reinforcement learning with LSTMs')
 
     # General
-    parser.add_argument('--env-name', type=str,
-        help='name of the environment')
+    parser.add_argument('--env', type=str)
     parser.add_argument('--ppo', action='store_true')
     parser.add_argument('--hdfs', action='store_false')
-    parser.add_argument('--gamma', type=float, default=0.99,
-        help='value of the discount factor gamma')
-    parser.add_argument('--tau', type=float, default=1.0,
-        help='value of the discount factor for GAE')
-    parser.add_argument('--vf_coef', type=float, default=0.25,
-        help='coefficient for value function portion of loss')
-    parser.add_argument('--batch-size', type=int, default=360,
-        help='number of episodes to estimate gradient')
-    parser.add_argument('--lr', type=float, default=7e-4,
-        help='learning rate for the LSTM network')
-    parser.add_argument('--num-batches', type=int, default=5000,
-        help='number of batches')    
+    parser.add_argument('--lr', type=float, default=7e-4)
+    parser.add_argument('--gamma', type=float, default=0.99)
+    parser.add_argument('--tau', type=float, default=1.0, help='discount factor for GAE')
+    parser.add_argument('--vf_coef', type=float, default=0.25, help='value function coeff')
+    parser.add_argument('--batch-size', type=int, default=360, help='num episodes for gradient est.')
+    parser.add_argument('--train-iters', type=int, default=5000, help='training iterations')    
 
     # Miscellaneous
-    parser.add_argument('--output-folder', type=str, default='debug',
-        help='name of the output folder')
-    parser.add_argument('--num-workers', type=int, default=60,
-        help='number of workers for trajectories sampling')
-    parser.add_argument('--device', type=str, default='cpu',
-        help='set the device (cpu or cuda)')
+    parser.add_argument('--output-folder', type=str, default='debug')
+    parser.add_argument('--num-workers', type=int, default=60, help='num workers for traj sampling')
+    parser.add_argument('--device', type=str, default='cpu', help='set device (cpu or cuda)')
     args = parser.parse_args()
 
     # Device
