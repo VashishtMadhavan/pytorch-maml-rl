@@ -107,37 +107,24 @@ class BatchEpisodes(object):
 class LSTMBatchEpisodes(BatchEpisodes):
     def __init__(self, batch_size, gamma=0.95, device='cpu'):
         super(LSTMBatchEpisodes, self).__init__(batch_size=batch_size, gamma=gamma, device=device)
-        self._action_embed_list = [[] for _ in range(batch_size)]
-        self._rew_embed_list = [[] for _ in range(batch_size)]
+        self._embed_list = [[] for _ in range(batch_size)]
         self._logprob_list = [[] for _ in range(batch_size)]
         self._old_value_list = [[] for _ in range(batch_size)]
 
-        self._action_embed = None
-        self._rew_embed = None
+        self._embed = None
         self._logprob = None
         self._old_value = None
 
     @property
-    def action_embeds(self):
-        if self._action_embed is None:
-            act_embed_shape = self._action_embed_list[0][0].shape
-            act_embeds = np.zeros((len(self), self.batch_size) + act_embed_shape, dtype=np.float32)
+    def embeds(self):
+        if self._embed is None:
+            embed_shape = self._embed_list[0][0].shape
+            embeds = np.zeros((len(self), self.batch_size) + embed_shape, dtype=np.float32)
             for i in range(self.batch_size):
-                length = len(self._action_embed_list[i])
-                act_embeds[:length, i] = np.stack(self._action_embed_list[i], axis=0)
-            self._action_embed = torch.from_numpy(act_embeds).to(self.device)
-        return self._action_embed
-
-    @property
-    def rew_embeds(self):
-        if self._rew_embed is None:
-            rew_embed_shape = self._rew_embed_list[0][0].shape
-            rew_embeds = np.zeros((len(self), self.batch_size) + rew_embed_shape, dtype=np.float32)
-            for i in range(self.batch_size):
-                length = len(self._rew_embed_list[i])
-                rew_embeds[:length, i] = np.stack(self._rew_embed_list[i], axis=0)
-            self._rew_embed = torch.from_numpy(rew_embeds).to(self.device)
-        return self._rew_embed
+                length = len(self._embed_list[i])
+                embeds[:length, i] = np.stack(self._embed_list[i], axis=0)
+            self._embed = torch.from_numpy(embeds).to(self.device)
+        return self._embed
 
     @property
     def logprobs(self):
@@ -169,7 +156,6 @@ class LSTMBatchEpisodes(BatchEpisodes):
             self._observations_list[batch_id].append(observation.astype(np.float32))
             self._actions_list[batch_id].append(action.astype(np.float32))
             self._rewards_list[batch_id].append(reward.astype(np.float32))
-            self._action_embed_list[batch_id].append(action_embed.astype(np.float32))
-            self._rew_embed_list[batch_id].append(rew_embed.astype(np.float32))
+            self._embed_list[batch_id].append(action_embed.astype(np.float32))
             self._logprob_list[batch_id].append(log_prob.astype(np.float32))
             self._old_value_list[batch_id].append(old_value.astype(np.float32))

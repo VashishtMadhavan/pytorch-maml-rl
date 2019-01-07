@@ -39,6 +39,8 @@ class LSTMLearner(object):
         self.gamma = gamma
         self.device = device
         self.lstm_size = lstm_size
+        self.obs_shape = self.envs.observation_space.shape
+        self.num_actions = self.envs.action_space.n
 
         # Sampler variables
         self.env_name = env_name
@@ -48,8 +50,7 @@ class LSTMLearner(object):
         self.queue = mp.Queue()
         self.envs = SubprocVecEnv([make_env(env_name) for _ in range(num_workers)], queue=self.queue)
         self._env = gym.make(env_name)
-        self.policy = ConvLSTMPolicy(input_size=self.envs.observation_space.shape,
-                                     output_size=self.envs.action_space.n)
+        self.policy = ConvLSTMPolicy(input_size=self.obs_shape, output_size=self.num_actions)
 
         # Optimization Variables
         self.lr = lr
@@ -65,30 +66,38 @@ class LSTMLearner(object):
         self.to(device)
         self.max_grad_norm = max_grad_norm
 
-    def loss(self, episodes, inds=None):
-        """
-        REINFORCE gradient with baseline [2], computed on advantages estimated 
-        with Generalized Advantage Estimation (GAE, [3]).
-        """
+    def _forward_policy(self, episodes, ratio=False):
         T = episodes.observations.size(0)
         values, log_probs, entropy = [], [], []
         hx = torch.zeros(self.batch_size, self.lstm_size).to(device=self.device)
         cx = torch.zeros(self.batch_size, self.lstm_size).to(device=self.device)
+
         for t in range(T):
-            pi_t, v_t, hx, cx = self.policy(episodes.observations[t], hx, cx, episodes.action_embeds[t], episodes.rew_embeds[t])
+            pi, v, hx, cx = self.policy(episodes.observations[t], hx, cx, episodes.embeds[t])
             values.append(v_t)
             entropy.append(pi_t.entropy())
-            log_probs.append(pi_t.log_prob(episodes.actions[t]))
+            if ratio:
+                log_probs.append(pi_t.log_prob(episodes.actions[t]) - episodes.logprobs[t])
+            else:
+                log_probs.append(pi_t.log_prob(episodes.actions[t]))
 
         log_probs = torch.stack(log_probs); values = torch.stack(values); entropy = torch.stack(entropy)
         advantages = episodes.gae(values, tau=self.tau)
         advantages = weighted_normalize(advantages, weights=episodes.mask)
-
         if log_probs.dim() > 2:
             log_probs = torch.sum(log_probs, dim=2)
 
+        return log_probs, advantages, values, entropy
+
+    def loss(self, episodes):
+        """
+        REINFORCE gradient with baseline [2], computed on advantages estimated 
+        with Generalized Advantage Estimation (GAE, [3]).
+        """
+        log_probs, advantages, values, entropy = self._forward_policy(episodes)
+
         pg_loss = -weighted_mean(log_probs * advantages, dim=0, weights=episodes.mask)
-        vf_loss = 0.5 * weighted_mean((values.squeeze() - episodes.returns) ** 2,dim=0, weights=episodes.mask)
+        vf_loss = 0.5 * weighted_mean((values.squeeze() - episodes.returns) ** 2, dim=0, weights=episodes.mask)
         entropy_loss = weighted_mean(entropy, dim=0, weights=episodes.mask)
         return pg_loss + self.vf_coef * vf_loss - self.ent_coef * entropy_loss
 
@@ -97,22 +106,7 @@ class LSTMLearner(object):
         """
         PPO Surrogate Loss
         """
-        T = episodes.observations.size(0)
-        values, log_ratios, entropy = [], [], []
-        hx = torch.zeros(self.batch_size, self.lstm_size).to(device=self.device)
-        cx = torch.zeros(self.batch_size, self.lstm_size).to(device=self.device)
-        for t in range(T):
-            pi_t, v_t, hx, cx = self.policy(episodes.observations[t], hx, cx, episodes.action_embeds[t], episodes.rew_embeds[t])
-            values.append(v_t)
-            entropy.append(pi_t.entropy())
-            log_ratios.append(pi_t.log_prob(episodes.actions[t]) - episodes.logprobs[t])
-        log_ratios = torch.stack(log_ratios); values = torch.stack(values); entropy = torch.stack(entropy)
-
-        advantages = episodes.gae(values, tau=self.tau)
-        advantages = weighted_normalize(advantages, weights=episodes.mask)
-
-        if log_ratios.dim() > 2:
-            log_ratios = torch.sum(log_ratios, dim=2)
+        log_ratios, advantages, values, entropy = self._forward_policy(episodes, ratio=True)
 
         # clipped pg loss
         ratio = torch.exp(log_ratios)
@@ -124,15 +118,13 @@ class LSTMLearner(object):
         vf_loss1 = (values.squeeze() - episodes.returns) ** 2
         vf_loss2 = (values_clipped - episodes.returns) ** 2
 
-        if not inds:
-            pg_loss = weighted_mean(torch.max(pg_loss1, pg_loss2), dim=0, weights=episodes.mask)
-            vf_loss = 0.5 * weighted_mean(torch.max(vf_loss1, vf_loss2), dim=0, weights=episodes.mask)
-            entropy_loss = weighted_mean(entropy, dim=0, weights=episodes.mask)
-        else:
-            masks = episodes.mask[:, inds]
-            pg_loss = weighted_mean(torch.max(pg_loss1, pg_loss2)[:, inds], dim=0, weights=masks)
-            vf_loss = 0.5 * weighted_mean(torch.max(vf_loss1, vf_loss2)[:, inds], dim=0, weights=masks)
-            entropy_loss = weighted_mean(entropy[:, inds], dim=0, weights=masks)
+        if inds is None:
+            inds = np.arange(self.batch_size)
+
+        masks = episodes.mask[:, inds]
+        pg_loss = weighted_mean(torch.max(pg_loss1, pg_loss2)[:, inds], dim=0, weights=masks)
+        vf_loss = 0.5 * weighted_mean(torch.max(vf_loss1, vf_loss2)[:, inds], dim=0, weights=masks)
+        entropy_loss = weighted_mean(entropy[:, inds], dim=0, weights=masks)
         return pg_loss + self.vf_coef * vf_loss - self.ent_coef * entropy_loss
 
 
@@ -147,7 +139,7 @@ class LSTMLearner(object):
         self.optimizer.step()
 
     def surrogate_step(self, episodes):
-        for se in range(self.surrogate_epochs):
+        for _ in range(self.surrogate_epochs):
             for k in range(self.surrogate_batches):
                 sample_inds = np.random.choice(self.batch_size, self.surrogate_batch_size, replace=False)
                 self.optimizer.zero_grad()
@@ -168,38 +160,37 @@ class LSTMLearner(object):
 
         self.envs.reset_task([None for _ in range(self.num_workers)])
         observations, batch_ids = self.envs.reset()
-        dones = [False]; num_actions = self.envs.action_space.n
+        dones = [False]
 
-        action_embed_tensor = torch.zeros(self.num_workers, num_actions).to(device=self.device)
-        action_embed_tensor[:, 0] = 1.
-        rew_embed_tensor = torch.zeros(self.num_workers, 2).to(device=self.device)
+        embed_tensor = torch.zeros(self.num_workers, self.num_actions + 2).to(device=self.device)
+        embed_tensor[:, 0] = 1.
         hx = torch.zeros(self.num_workers, self.lstm_size).to(device=self.device)
         cx = torch.zeros(self.num_workers, self.lstm_size).to(device=self.device)
 
         while (not all(dones)) or (not self.queue.empty()):
             with torch.no_grad():
-                observations_tensor = torch.from_numpy(observations).to(device=self.device)
-                actions_dist, values_tensor, hx, cx = self.policy(observations_tensor, hx, cx, action_embed_tensor, rew_embed_tensor)
-                actions = actions_dist.sample()
-                log_probs = actions_dist.log_prob(actions).cpu().numpy()
-                actions = actions.cpu().numpy()
+                obs_tensor = torch.from_numpy(observations).to(device=self.device)
+                act_dist, values_tensor, hx, cx = self.policy(obs_tensor, hx, cx, embed_tensor)
+                act_tensor = act_dist.sample()
+
+                # cpu variables for logging
+                log_probs = act_dist.log_prob(act_tensor).cpu().numpy()
+                actions = act_tensor.cpu().numpy()
                 old_values = values_tensor.squeeze().cpu().numpy()
-                action_embed = action_embed_tensor.cpu().numpy()
-                rew_embed = rew_embed_tensor.cpu().numpy()
+                embed = embed_tensor.cpu().numpy()
             new_observations, rewards, dones, new_batch_ids, _ = self.envs.step(actions)
 
             # Update embeddings when episode is done
-            actions_mask = ((1. - dones.astype(np.float32)) * actions).astype(np.int32)
-            action_embed_tensor = torch.from_numpy(one_hot(actions_mask, num_actions)).float().to(device=self.device)
-            rew_embed_tensor = torch.from_numpy(np.hstack((rewards[:, None], dones[:, None]))).float().to(device=self.device)
+            embed_temp = np.hstack(one_hot(actions, self.num_actions), rewards[:, None], dones[:, None])
+            embed_tensor = torch.from_numpy(embed_temp).float().to(device=self.device)
 
             # Update hidden states
             dones_tensor = torch.from_numpy(dones.astype(np.float32)).to(device=self.device)
-            hx[dones_tensor == 1] = 0.
-            cx[dones_tensor == 1] = 0.
-            rew_embed_tensor[dones_tensor == 1] == 0.
+            hx[dones_tensor == 1] = 0.; cx[dones_tensor == 1] = 0.
+            embed_tensor[dones_tensor == 1] = 0.
+            embed_tensor[dones_tensor == 1, 0] = 1.
 
-            episodes.append(observations, actions, rewards, batch_ids, log_probs, old_values, action_embed, rew_embed)
+            episodes.append(observations, actions, rewards, batch_ids, log_probs, old_values, embed)
             observations, batch_ids = new_observations, new_batch_ids
         return episodes
 

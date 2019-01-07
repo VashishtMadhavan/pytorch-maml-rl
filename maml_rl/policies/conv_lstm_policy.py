@@ -26,7 +26,7 @@ class ConvLSTMPolicy(nn.Module):
         self.pi = nn.Linear(256, self.output_size)
         self.v = nn.Linear(256, 1)
 
-    def forward(self, x, hx, cx, act_embedding, rew_embedding):
+    def forward(self, x, hx, cx, embed):
         # state embedding
         output = x.permute(0, 3, 1, 2)
         output = self.nonlinearity(self.conv1(output))
@@ -35,8 +35,8 @@ class ConvLSTMPolicy(nn.Module):
         output = output.view(output.size(0), -1)
         output = self.nonlinearity(self.fc(output))
 
-        # passing joint embedding through LSTM
-        output = torch.cat((output, act_embedding, rew_embedding), dim=1)
+        # passing joint state + action embedding thru LSTM
+        output = torch.cat((output, embed), dim=1)
         h_out, c_out = self.lstm(output, (hx, cx))
         output = h_out
         return Categorical(logits=self.pi(output)), self.v(output), h_out, c_out
