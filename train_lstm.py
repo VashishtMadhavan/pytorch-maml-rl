@@ -78,12 +78,11 @@ if __name__ == '__main__':
     # Miscellaneous
     parser.add_argument('--output-folder', type=str, default='debug')
     parser.add_argument('--num-workers', type=int, default=60, help='num workers for traj sampling')
-    parser.add_argument('--device', type=str, default='cpu', help='set device (cpu or cuda)')
     args = parser.parse_args()
 
     # Device
-    args.device = torch.device(args.device
-        if torch.cuda.is_available() else 'cpu')
+    args.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
     # Slurm
     if 'SLURM_JOB_ID' in os.environ:
         args.output_folder += '-{0}'.format(os.environ['SLURM_JOB_ID'])
