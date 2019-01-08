@@ -28,9 +28,6 @@ def main(args):
         num_workers=args.num_workers, num_batches=args.train_iters, gamma=args.gamma,
         lr=args.lr, tau=args.tau, vf_coef=args.vf_coef, device=args.device)
 
-    with open('{0}/log.txt'.format(args.output_folder), 'a') as f:
-        print("EpisodeReward", file=f)
-
     """
     Training Loop
     """
@@ -47,11 +44,11 @@ def main(args):
 
         # Writing Episode Rewards
         tot_rew = total_rewards([episodes.rewards])
-        with open('{0}/log.txt'.format(args.output_folder), 'a') as f:
-            print('{}'.format(tot_rew), file=f)
-
         tsteps = (batch + 1) * args.batch_size * 200
         print("MeanReward: {0} Batch: {1} Tsteps: {2} TimePerBatch: {3}".format(tot_rew, batch, tsteps, batch_step_time))
+
+        with open('{0}/log.txt'.format(args.output_folder), 'a') as f:
+            print("MeanReward: {0} Batch: {1} Tsteps: {2} TimePerBatch: {3}".format(tot_rew, batch, tsteps, batch_step_time), file=f)
 
         # Save policy network
         with open(os.path.join(save_folder, 'policy-{0}.pt'.format(batch)), 'wb') as f:
