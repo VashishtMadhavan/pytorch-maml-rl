@@ -4,7 +4,7 @@ from tqdm import tqdm
 import maml_rl.envs
 
 ENV_NAME = 'CustomGame-v0'
-TEST_EPS = 1000
+TEST_EPS = 500
 RENDER = False
 
 total_rew = []
