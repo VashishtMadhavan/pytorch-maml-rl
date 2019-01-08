@@ -56,7 +56,7 @@ class LSTMLearner(object):
         self.lr = lr
         self.tau = tau
         self.clip_frac = clip_frac
-        self.optimizer = optim.RMSprop(self.policy.parameters(), lr=self.lr, alpha=0.99, eps=1e-5)
+        self.optimizer = optim.Adam(self.policy.parameters(), lr=self.lr, eps=1e-5)
 
         # PPO variables
         self.surrogate_epochs = surr_epochs

@@ -2,7 +2,7 @@
 #latest
 #.
 
-FROM localhost:5000/opus-deep-learning:master-prod-2018_9_20_18_2_31
+FROM opus-deep-learning:master-prod-2018_7_24_5_17_47
 
 RUN /bin/bash -c "cd /home && \
     apt-get update && \
