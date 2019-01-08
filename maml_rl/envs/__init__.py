@@ -28,7 +28,7 @@ register(
     'CustomGame-v0',
     entry_point='maml_rl.envs.utils:universe_wrapper',
     kwargs={'entry_point': 'maml_rl.envs.game:CustomGameEnv'},
-    max_episode_steps=200
+    max_episode_steps=100
 )
 
 register(
