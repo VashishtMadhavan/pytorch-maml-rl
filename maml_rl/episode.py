@@ -148,14 +148,14 @@ class LSTMBatchEpisodes(BatchEpisodes):
 
 
 
-    def append(self, observations, actions, rewards, batch_ids, log_probs, old_values, action_embeds, rew_embeds):
-        for observation, action, reward, batch_id, log_prob, old_value, action_embed, rew_embed in zip(
-                observations, actions, rewards, batch_ids, log_probs, old_values, action_embeds, rew_embeds):
+    def append(self, observations, actions, rewards, batch_ids, log_probs, old_values, embeds):
+        for observation, action, reward, batch_id, log_prob, old_value, embed in zip(
+                observations, actions, rewards, batch_ids, log_probs, old_values, embeds):
             if batch_id is None:
                 continue
             self._observations_list[batch_id].append(observation.astype(np.float32))
             self._actions_list[batch_id].append(action.astype(np.float32))
             self._rewards_list[batch_id].append(reward.astype(np.float32))
-            self._embed_list[batch_id].append(action_embed.astype(np.float32))
+            self._embed_list[batch_id].append(embed.astype(np.float32))
             self._logprob_list[batch_id].append(log_prob.astype(np.float32))
             self._old_value_list[batch_id].append(old_value.astype(np.float32))

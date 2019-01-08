@@ -2,7 +2,6 @@ import gym
 import numpy as np
 import torch
 import argparse
-import torch
 import imageio
 
 import maml_rl.envs
@@ -10,7 +9,7 @@ from maml_rl.policies.conv_lstm_policy import ConvLSTMPolicy
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--env-name", type=str, default='customgame-v0')
+    parser.add_argument("--env-name", type=str, default='CustomGame-v0')
     parser.add_argument("--test-eps", type=int, default=10)
     parser.add_argument("--checkpoint", type=str)
     parser.add_argument("--render", action="store_true")

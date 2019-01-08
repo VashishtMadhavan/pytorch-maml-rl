@@ -2,8 +2,8 @@ import maml_rl.envs
 import gym
 import numpy as np
 import torch
+import time
 import json
-from tqdm import tqdm
 from maml_rl.lstm_learner import LSTMLearner
 
 def hdfs_save(hdfs_dir, filename):
@@ -34,7 +34,8 @@ def main(args):
     """
     Training Loop
     """
-    for batch in tqdm(range(args.train_iters)):
+    for batch in range(args.train_iters):
+        tstart = time.time()
         episodes = learner.sample()
         if args.ppo:
             # PPO step
@@ -42,6 +43,7 @@ def main(args):
         else:
             # Regular A2C step
             learner.step(episodes)
+        batch_step_time = time.time() - tstart
 
         # Writing Episode Rewards
         tot_rew = total_rewards([episodes.rewards])
@@ -49,7 +51,7 @@ def main(args):
             print('{}'.format(tot_rew), file=f)
 
         tsteps = (batch + 1) * args.batch_size * 200
-        print("Total Rew: {0} Batch: {1}  Timesteps: {2}".format(tot_rew, batch, tsteps))
+        print("MeanReward: {0} Batch: {1} Tsteps: {2} TimePerBatch: {3}".format(tot_rew, batch, tsteps, batch_step_time))
 
         # Save policy network
         with open(os.path.join(save_folder, 'policy-{0}.pt'.format(batch)), 'wb') as f:

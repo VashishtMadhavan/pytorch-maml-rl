@@ -39,8 +39,6 @@ class LSTMLearner(object):
         self.gamma = gamma
         self.device = device
         self.lstm_size = lstm_size
-        self.obs_shape = self.envs.observation_space.shape
-        self.num_actions = self.envs.action_space.n
 
         # Sampler variables
         self.env_name = env_name
@@ -50,6 +48,8 @@ class LSTMLearner(object):
         self.queue = mp.Queue()
         self.envs = SubprocVecEnv([make_env(env_name) for _ in range(num_workers)], queue=self.queue)
         self._env = gym.make(env_name)
+        self.obs_shape = self.envs.observation_space.shape
+        self.num_actions = self.envs.action_space.n
         self.policy = ConvLSTMPolicy(input_size=self.obs_shape, output_size=self.num_actions)
 
         # Optimization Variables
@@ -74,12 +74,12 @@ class LSTMLearner(object):
 
         for t in range(T):
             pi, v, hx, cx = self.policy(episodes.observations[t], hx, cx, episodes.embeds[t])
-            values.append(v_t)
-            entropy.append(pi_t.entropy())
+            values.append(v)
+            entropy.append(pi.entropy())
             if ratio:
-                log_probs.append(pi_t.log_prob(episodes.actions[t]) - episodes.logprobs[t])
+                log_probs.append(pi.log_prob(episodes.actions[t]) - episodes.logprobs[t])
             else:
-                log_probs.append(pi_t.log_prob(episodes.actions[t]))
+                log_probs.append(pi.log_prob(episodes.actions[t]))
 
         log_probs = torch.stack(log_probs); values = torch.stack(values); entropy = torch.stack(entropy)
         advantages = episodes.gae(values, tau=self.tau)
@@ -181,7 +181,7 @@ class LSTMLearner(object):
             new_observations, rewards, dones, new_batch_ids, _ = self.envs.step(actions)
 
             # Update embeddings when episode is done
-            embed_temp = np.hstack(one_hot(actions, self.num_actions), rewards[:, None], dones[:, None])
+            embed_temp = np.hstack((one_hot(actions, self.num_actions), rewards[:, None], dones[:, None]))
             embed_tensor = torch.from_numpy(embed_temp).float().to(device=self.device)
 
             # Update hidden states
