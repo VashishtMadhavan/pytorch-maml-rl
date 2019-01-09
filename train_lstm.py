@@ -51,8 +51,9 @@ def main(args):
             print("MeanReward: {0} Batch: {1} Tsteps: {2} TimePerBatch: {3}".format(tot_rew, batch, tsteps, batch_step_time), file=f)
 
         # Save policy network
-        with open(os.path.join(save_folder, 'policy-{0}.pt'.format(batch)), 'wb') as f:
-            torch.save(learner.policy.state_dict(), f)
+        if batch % 50 == 0:
+            with open(os.path.join(save_folder, 'policy-{0}.pt'.format(batch)), 'wb') as f:
+                torch.save(learner.policy.state_dict(), f)
 
     learner.envs.close()
     if args.hdfs:
@@ -73,7 +74,7 @@ if __name__ == '__main__':
     parser.add_argument('--tau', type=float, default=0.95, help='discount factor for GAE')
     parser.add_argument('--vf_coef', type=float, default=0.5, help='value function coeff')
     parser.add_argument('--batch-size', type=int, default=240, help='num episodes for gradient est.')
-    parser.add_argument('--train-iters', type=int, default=5000, help='training iterations')
+    parser.add_argument('--train-iters', type=int, default=500, help='training iterations')
 
     # Miscellaneous
     parser.add_argument('--outdir', type=str, default='debug')
