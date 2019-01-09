@@ -3,6 +3,7 @@ __pycache__/
 *.py[cod]
 *$py.class
 ailabs_util/
+quicksilver_config.json
 
 # C extensions
 *.so
