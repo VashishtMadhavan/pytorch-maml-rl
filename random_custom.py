@@ -1,21 +1,25 @@
 import gym
 import numpy as np
 from tqdm import tqdm
+import argparse
 import maml_rl.envs
 
-ENV_NAME = 'CustomGame-v0'
-TEST_EPS = 500
-RENDER = False
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--env', type=str, default='CustomGame-v0')
+parser.add_argument('--test-eps', type=int, default=500)
+parser.add_argument('--render', action='store_true')
+args = parser.parse_args()
 
 total_rew = []
 total_steps = []
 
-env = gym.make(ENV_NAME)
-for t in tqdm(range(TEST_EPS)):
+env = gym.make(args.env)
+for t in tqdm(range(args.test_eps)):
 	obs = env.reset(); done = False
 	steps = 0; ep_rew = 0
 	while not done:
-		if RENDER:
+		if args.render:
 			env.render()
 		obs, rew, done, info = env.step(np.random.randint(env.action_space.n))
 		ep_rew += rew

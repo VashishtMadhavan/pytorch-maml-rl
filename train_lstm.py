@@ -44,7 +44,7 @@ def main(args):
 
         # Writing Episode Rewards
         tot_rew = total_rewards([episodes.rewards])
-        tsteps = (batch + 1) * args.batch_size * 200
+        tsteps = (batch + 1) * args.batch_size * 100
         print("MeanReward: {0} Batch: {1} Tsteps: {2} TimePerBatch: {3}".format(tot_rew, batch, tsteps, batch_step_time))
 
         with open('{0}/log.txt'.format(args.outdir), 'a') as f:
