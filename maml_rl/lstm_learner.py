@@ -33,7 +33,7 @@ class LSTMLearner(object):
     """
     def __init__(self, env_name, batch_size, num_workers, num_batches=1000,
                 gamma=0.95, lr=0.01, tau=1.0, ent_coef=.01, vf_coef=0.5, lstm_size=256, clip_frac=0.2, device='cpu',
-                surr_epochs=4, surr_batches=4, max_grad_norm=0.5):
+                surr_epochs=4, surr_batches=4, l2_coef=0., max_grad_norm=0.5):
         self.vf_coef = vf_coef
         self.ent_coef = ent_coef
         self.gamma = gamma
@@ -56,7 +56,7 @@ class LSTMLearner(object):
         self.lr = lr
         self.tau = tau
         self.clip_frac = clip_frac
-        self.optimizer = optim.Adam(self.policy.parameters(), lr=self.lr, eps=1e-5)
+        self.optimizer = optim.Adam(self.policy.parameters(), lr=self.lr, eps=1e-5, weight_decay=l2_coef)
 
         # PPO variables
         self.surrogate_epochs = surr_epochs
