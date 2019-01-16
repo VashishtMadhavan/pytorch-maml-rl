@@ -10,7 +10,7 @@ from maml_rl.policies.conv_lstm_policy import ConvLSTMPolicy
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--env-name", type=str, default='CustomGame-v0')
+    parser.add_argument("--env-name", type=str, default='OriginalGame-v0')
     parser.add_argument("--test-eps", type=int, default=10)
     parser.add_argument("--checkpoint", type=str)
     parser.add_argument("--render", action="store_true")
@@ -75,6 +75,7 @@ def main():
     episode_rew, episode_steps = evaluate(env, policy, device, test_eps=args.test_eps, render=args.render, random=args.random, record=args.record)
 
     print("MeanRewards: ",  np.mean(episode_rew))
+    print("Std.Rewards", np.std(episode_rew) / np.sqrt(len(episode_rew)))
     print("MeanSteps: ", np.mean(episode_steps))
 
 
