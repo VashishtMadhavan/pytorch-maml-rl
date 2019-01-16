@@ -3,6 +3,7 @@ import numpy as np
 import torch
 import argparse
 import imageio
+from tqdm import tqdm
 
 import maml_rl.envs
 from maml_rl.policies.conv_lstm_policy import ConvLSTMPolicy
@@ -32,7 +33,7 @@ def load_params(policy_path, env, device):
 def evaluate(env, policy, device, test_eps=10, render=False, random=False, record=False):
     num_actions = env.action_space.n; total_frames = []
     ep_rews = []; ep_steps = []
-    for t in range(test_eps):
+    for t in tqdm(range(test_eps)):
         obs = env.reset(); done = False
         embed_tensor = torch.zeros(1, num_actions + 2).to(device=device)
         embed_tensor[:, 0] = 1.
