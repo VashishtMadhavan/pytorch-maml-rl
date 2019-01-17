@@ -10,10 +10,11 @@ from maml_rl.policies.conv_lstm_policy import ConvLSTMPolicy
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--env-name", type=str, default='OriginalGame-v0')
+    parser.add_argument("--env-name", type=str, default='CustomGame-v0')
     parser.add_argument("--test-eps", type=int, default=10)
     parser.add_argument("--checkpoint", type=str)
     parser.add_argument("--render", action="store_true")
+    parser.add_argument("--greedy", action="store_true")
     parser.add_argument("--random", action="store_true")
     parser.add_argument("--record", action="store_true")
     return parser.parse_args()
@@ -30,7 +31,7 @@ def load_params(policy_path, env, device):
     return policy
 
 
-def evaluate(env, policy, device, test_eps=10, render=False, random=False, record=False):
+def evaluate(env, policy, device, test_eps=10, greedy=False, render=False, random=False, record=False):
     num_actions = env.action_space.n; total_frames = []
     ep_rews = []; ep_steps = []
     for t in tqdm(range(test_eps)):
@@ -47,7 +48,11 @@ def evaluate(env, policy, device, test_eps=10, render=False, random=False, recor
                 env.render()
             obs_tensor = torch.from_numpy(np.array(obs)[None]).to(device=device)
             action_dist, value_tensor, hx, cx = policy(obs_tensor, hx, cx, embed_tensor)
-            action = action_dist.sample().cpu().numpy()
+            if greedy:
+                probs = action_dist.probs.detach().cpu().numpy()
+                action = np.argmax(probs, axis=1)
+            else:
+                action = action_dist.sample().cpu().numpy()
 
             if random:
                 obs, rew, done, _ = env.step(env.action_space.sample())
@@ -72,7 +77,7 @@ def main():
     env = gym.make(args.env_name)
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     policy = load_params(args.checkpoint, env, device)
-    episode_rew, episode_steps = evaluate(env, policy, device, test_eps=args.test_eps, render=args.render, random=args.random, record=args.record)
+    episode_rew, episode_steps = evaluate(env, policy, device, greedy=args.greedy, test_eps=args.test_eps, render=args.render, random=args.random, record=args.record)
 
     print("MeanRewards: ",  np.mean(episode_rew))
     print("Std.Rewards", np.std(episode_rew) / np.sqrt(len(episode_rew)))
