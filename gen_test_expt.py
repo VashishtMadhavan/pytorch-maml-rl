@@ -32,7 +32,7 @@ def main(args):
     log_files = ['test_saves/' + x for x in os.listdir('test_saves/')]
     rewards = []; batches = []
     for l in log_files:
-        batch = int(l.split('/').split('.txt')[0])
+        batch = int(l.split('/')[-1].split('.txt')[0])
         lines = [x.rstrip().split() for x in open(l).readlines()]
         batches.append(batch)
         rewards.append(float(lines[0][1]))
