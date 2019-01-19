@@ -1,4 +1,5 @@
 import gym
+import sys; import os
 import numpy as np
 import torch
 import argparse
@@ -10,13 +11,14 @@ from maml_rl.policies.conv_lstm_policy import ConvLSTMPolicy
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--env-name", type=str, default='CustomGame-v0')
+    parser.add_argument("--env", type=str, default='CustomGame-v0')
     parser.add_argument("--test-eps", type=int, default=10)
     parser.add_argument("--checkpoint", type=str)
     parser.add_argument("--render", action="store_true")
     parser.add_argument("--greedy", action="store_true")
     parser.add_argument("--random", action="store_true")
     parser.add_argument("--record", action="store_true")
+    parser.add_argument("--save", action="store_true")
     return parser.parse_args()
 
 
@@ -74,14 +76,22 @@ def evaluate(env, policy, device, test_eps=10, greedy=False, render=False, rando
  
 def main():
     args = parse_args()
-    env = gym.make(args.env_name)
+    env = gym.make(args.env)
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     policy = load_params(args.checkpoint, env, device)
     episode_rew, episode_steps = evaluate(env, policy, device, greedy=args.greedy, test_eps=args.test_eps, render=args.render, random=args.random, record=args.record)
 
-    print("MeanRewards: ",  np.mean(episode_rew))
-    print("Std.Rewards", np.std(episode_rew) / np.sqrt(len(episode_rew)))
-    print("MeanSteps: ", np.mean(episode_steps))
+    if args.save:
+        batch = args.checkpoint.split('/')[-1].split('.')[0].split('-')[1]
+        save_dir = 'test_saves/'
+        if not os.path.exists(save_dir):
+            os.makedirs(save_dir)
+        f = open('{}/{}.txt'.format(save_dir, batch), 'a')
+    else:
+        f = sys.stdout
+    print("MeanRewards: {}".format(np.mean(episode_rew)), file=f)
+    print("Std.Rewards: {}".format(np.std(episode_rew) / np.sqrt(len(episode_rew))), file=f)
+    print("MeanSteps: {}".format(np.mean(episode_steps)), file=f)
 
 
 if __name__ == '__main__':
