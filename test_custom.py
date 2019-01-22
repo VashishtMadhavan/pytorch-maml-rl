@@ -65,7 +65,7 @@ def evaluate(env, policy, device, test_eps=10, greedy=False, render=False, rando
             embed_arr[action[0]] = 1.
             embed_arr[-2] = rew
             embed_arr[-1] = float(done)
-            action_embed_tensor = torch.from_numpy(embed_arr[None]).float().to(device=device)
+            embed_tensor = torch.from_numpy(embed_arr[None]).float().to(device=device)
 
             total_rew += rew; tstep += 1
         ep_rews.append(total_rew); ep_steps.append(tstep)

@@ -4,6 +4,7 @@ __pycache__/
 *$py.class
 ailabs_util/
 test_saves/
+visualize_atari/
 quicksilver_config.json
 
 # C extensions
