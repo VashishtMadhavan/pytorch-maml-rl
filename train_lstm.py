@@ -9,14 +9,27 @@ from maml_rl.lstm_learner import LSTMLearner
 def hdfs_save(hdfs_dir, filename):
     os.system('/opt/hadoop/latest/bin/hdfs dfs -copyFromLocal -f {} {}'.format(filename, hdfs_dir))
 
+def hdfs_load(hdfs_dir, local_dir):
+    hdfs_expt = '{}/{}'.format(hdfs_dir, local_dir)
+    os.system('/opt/hadoop/latest/bin/hdfs dfs -copyToLocal {} .'.format(hdfs_expt))
+
 def total_rewards(episodes_rewards, aggregation=torch.mean):
     rewards = torch.mean(torch.stack([aggregation(torch.sum(rewards, dim=0))
         for rewards in episodes_rewards], dim=0))
     return rewards.item()
 
 def main(args):
+    if args.load:
+        try:
+            hdfs_load('/ailabs/vash/custom_game/', args.outdir + '/')
+        except:
+            print("Cannot find experiment on HDFS, starting from beginning...")
+
     save_folder = '{0}/saves/'.format(args.outdir)
+    log_file = '{0}/log.txt'.format(args.outdir)
+    hdfs_found = True
     if not os.path.exists(save_folder):
+        hdfs_found = False
         os.makedirs(save_folder)
 
     with open(os.path.join(save_folder, 'config.json'), 'w') as f:
@@ -28,10 +41,25 @@ def main(args):
         num_workers=args.workers, num_batches=args.train_iters, gamma=args.gamma, use_bn=args.use_bn,
         lr=args.lr, tau=args.tau, vf_coef=args.vf_coef, l2_coef=args.l2_coef, device=args.device)
 
+    if args.load and hdfs_found:
+        # loading last checkpoint
+        save_filename = max(glob.glob(save_folder + '*.pt'), key=lambda x: int(x.split('-')[-1].split('.')[0]))
+        learner.policy.load_state_dict(torch.load(save_filename))
+        batch = int(save_filename.split('-')[-1].split('.')[0])
+
+        # updating log file
+        with open(log_file, 'rb') as f:
+            lines = f.readlines()
+        with open(log_file, 'wb') as f:
+            for line in lines[:batch]:
+                f.write(line)
+    else:
+        batch = 0
+
     """
     Training Loop
     """
-    for batch in range(args.train_iters):
+    while batch < args.train_iters:
         tstart = time.time()
         episodes = learner.sample()
         if args.ppo:
@@ -47,13 +75,14 @@ def main(args):
         tsteps = (batch + 1) * args.batch_size * 100
         print("MeanReward: {0} Batch: {1} Tsteps: {2} TimePerBatch: {3}".format(tot_rew, batch, tsteps, batch_step_time))
 
-        with open('{0}/log.txt'.format(args.outdir), 'a') as f:
+        with open(log_file, 'a') as f:
             print("MeanReward: {0} Batch: {1} Tsteps: {2} TimePerBatch: {3}".format(tot_rew, batch, tsteps, batch_step_time), file=f)
 
         # Save policy network
         if batch % 50 == 0:
             with open(os.path.join(save_folder, 'policy-{0}.pt'.format(batch)), 'wb') as f:
                 torch.save(learner.policy.state_dict(), f)
+        batch += 1
 
     learner.envs.close()
     if args.hdfs:
@@ -62,6 +91,7 @@ def main(args):
 if __name__ == '__main__':
     import argparse
     import os
+    import glob
 
     parser = argparse.ArgumentParser(description='Reinforcement learning with LSTMs')
 
@@ -69,6 +99,7 @@ if __name__ == '__main__':
     parser.add_argument('--env', type=str)
     parser.add_argument('--ppo', action='store_true')
     parser.add_argument('--hdfs', action='store_false')
+    parser.add_argument('--load', action='store_true', help='loading previous experiment')
     parser.add_argument('--lr', type=float, default=2.5e-4)
     parser.add_argument('--gamma', type=float, default=0.99)
     parser.add_argument('--tau', type=float, default=0.95, help='discount factor for GAE')
