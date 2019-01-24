@@ -127,11 +127,10 @@ if __name__=='__main__':
         # display visualization
         frame = history['ins'][frame_idx].squeeze().copy()
         actor_map = saliency_frame(actor_saliency, frame, fudge_factor=100, channel=2) # blue vis; yellow bg
-        critic_map = saliency_frame(critic_saliency, frame, fudge_factor=int(2e5), channel=0) # red vis; blueish background
+        critic_map = saliency_frame(critic_saliency, frame, fudge_factor=int(3e5), channel=0) # red vis; blueish background
 
         amap_frames.append(actor_map)
-        cmap_frames.append(cmap_frames)
-    import pdb; pbd.set_trace()
+        cmap_frames.append(critic_map)
 
     imageio.mimsave('base_actor.gif', amap_frames)
     imageio.mimsave('base_critic.gif', cmap_frames)
