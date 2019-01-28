@@ -24,6 +24,10 @@ RUN /bin/bash -c "source /home/env/bin/activate && \
     cd /home/work && \
     git clone https://github.com/VashishtMadhavan/PyGame-Learning-Environment.git && \
     pip install -e '/home/work/PyGame-Learning-Environment' && \
+    git clone git@github.com:pytorch/contrib.git && \
+    cd /home/work/contrib/ && \
+    python setup.py install && \
+    cd /home/work && \
     pip install /home/work/ailabs_util && \ 
     git clone https://github.com/VashishtMadhavan/gym.git && \
     pip install -e '/home/work/gym'"
