@@ -2,7 +2,6 @@ import maml_rl.envs
 import gym
 import numpy as np
 import torch
-import torchcontrib
 import time
 import json
 from maml_rl.lstm_learner import LSTMLearner
@@ -60,9 +59,7 @@ def main(args):
     """
     Training Loop
     """
-    if args.swa:
-        learner.optimizer = torchcontrib.optim.SWA(learner.optimizer, swa_start=args.swa_start,
-                                                swa_freq=args.swa_freq, swa_lr=args.swa_lr)
+
     while batch < args.train_iters:
         tstart = time.time()
         episodes = learner.sample()
@@ -87,10 +84,6 @@ def main(args):
             with open(os.path.join(save_folder, 'policy-{0}.pt'.format(batch)), 'wb') as f:
                 torch.save(learner.policy.state_dict(), f)
         batch += 1
-
-    # Set the final weights to the running avg
-    if args.swa:
-        learner.optimizer.swap_swa_sgd()
 
     # Saving the Final Policy
     with open(os.path.join(save_folder, 'final.pt'), 'wb') as f:
@@ -121,12 +114,6 @@ if __name__ == '__main__':
     parser.add_argument('--use_bn', action='store_true', help='use batch normalizaton')
     parser.add_argument('--batch-size', type=int, default=240, help='num episodes for gradient est.')
     parser.add_argument('--train-iters', type=int, default=5000, help='training iterations')
-
-    # SWA Parameters
-    parser.add_argument('--swa', action='store_true')
-    parser.add_argument('--swa_start', type=int, default=4000, help='when to start SWA')
-    parser.add_argument('--swa_freq', type=int, default=100, help='how frequently to weight avg')
-    parser.add_argument('--swa_lr', type=float, default=1e-4, help='learning rate used for SWA')
 
     # Miscellaneous
     parser.add_argument('--outdir', type=str, default='debug')
