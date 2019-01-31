@@ -15,7 +15,7 @@ import numpy as np
 
 from maml_rl.envs.subproc_vec_env import SubprocVecEnv
 from maml_rl.episode import LSTMBatchEpisodes
-from maml_rl.policies import ConvLSTMPolicy
+from maml_rl.policies import ConvLSTMPolicy, ConvCLSTMPolicy
 
 def make_env(env_name):
     def _make_env():
@@ -33,12 +33,13 @@ class LSTMLearner(object):
     """
     def __init__(self, env_name, batch_size, num_workers, num_batches=1000,
                 gamma=0.95, lr=0.01, tau=1.0, ent_coef=.01, vf_coef=0.5, lstm_size=256, clip_frac=0.2, device='cpu',
-                surr_epochs=4, surr_batches=4, l2_coef=0., use_bn=False, max_grad_norm=0.5):
+                surr_epochs=4, clstm=False, surr_batches=4, l2_coef=0., use_bn=False, max_grad_norm=0.5):
         self.vf_coef = vf_coef
         self.ent_coef = ent_coef
         self.gamma = gamma
         self.device = device
         self.lstm_size = lstm_size
+        self.use_clstm = clstm
 
         # Sampler variables
         self.env_name = env_name
@@ -50,7 +51,10 @@ class LSTMLearner(object):
         self._env = gym.make(env_name)
         self.obs_shape = self.envs.observation_space.shape
         self.num_actions = self.envs.action_space.n
-        self.policy = ConvLSTMPolicy(input_size=self.obs_shape, output_size=self.num_actions, use_bn=use_bn)
+        if not self.use_clstm:
+            self.policy = ConvLSTMPolicy(input_size=self.obs_shape, output_size=self.num_actions, use_bn=use_bn)
+        else:
+            self.policy = ConvCLSTMPolicy(input_size=self.obs_shape, output_size=self.num_actions, use_bn=use_bn)
 
         # Optimization Variables
         self.lr = lr
@@ -69,8 +73,11 @@ class LSTMLearner(object):
     def _forward_policy(self, episodes, ratio=False):
         T = episodes.observations.size(0)
         values, log_probs, entropy = [], [], []
-        hx = torch.zeros(self.batch_size, self.lstm_size).to(device=self.device)
-        cx = torch.zeros(self.batch_size, self.lstm_size).to(device=self.device)
+        if not self.use_clstm:
+            hx = torch.zeros(self.batch_size, self.lstm_size).to(device=self.device)
+            cx = torch.zeros(self.batch_size, self.lstm_size).to(device=self.device)
+        else:
+            pass #TODO: implement this
 
         for t in range(T):
             pi, v, hx, cx = self.policy(episodes.observations[t], hx, cx, episodes.embeds[t])
@@ -164,8 +171,11 @@ class LSTMLearner(object):
 
         embed_tensor = torch.zeros(self.num_workers, self.num_actions + 2).to(device=self.device)
         embed_tensor[:, 0] = 1.
-        hx = torch.zeros(self.num_workers, self.lstm_size).to(device=self.device)
-        cx = torch.zeros(self.num_workers, self.lstm_size).to(device=self.device)
+        if not self.use_clstm:
+            hx = torch.zeros(self.num_workers, self.lstm_size).to(device=self.device)
+            cx = torch.zeros(self.num_workers, self.lstm_size).to(device=self.device)
+        else:
+            pass # TODO: implement here
 
         while (not all(dones)) or (not self.queue.empty()):
             with torch.no_grad():
@@ -186,7 +196,10 @@ class LSTMLearner(object):
 
             # Update hidden states
             dones_tensor = torch.from_numpy(dones.astype(np.float32)).to(device=self.device)
-            hx[dones_tensor == 1] = 0.; cx[dones_tensor == 1] = 0.
+            if not self.use_clstm:
+                hx[dones_tensor == 1] = 0.; cx[dones_tensor == 1] = 0.
+            else:
+                pass # TODO: implement
             embed_tensor[dones_tensor == 1] = 0.
             embed_tensor[dones_tensor == 1, 0] = 1.
 
