@@ -38,7 +38,10 @@ class LSTMLearner(object):
         self.ent_coef = ent_coef
         self.gamma = gamma
         self.device = device
-        self.lstm_size = lstm_size
+        if not self.use_clstm:
+            self.lstm_size = 256
+        else:
+            self.lstm_size = 32
         self.use_clstm = clstm
 
         # Sampler variables
@@ -77,7 +80,8 @@ class LSTMLearner(object):
             hx = torch.zeros(self.batch_size, self.lstm_size).to(device=self.device)
             cx = torch.zeros(self.batch_size, self.lstm_size).to(device=self.device)
         else:
-            pass #TODO: implement this
+            hx = torch.zeros(self.batch_size, self.lstm_size, 7, 7).to(device=self.device)
+            cx = torch.zeros(self.batch_size, self.lstm_size, 7, 7).to(device=self.device)
 
         for t in range(T):
             pi, v, hx, cx = self.policy(episodes.observations[t], hx, cx, episodes.embeds[t])
@@ -175,7 +179,8 @@ class LSTMLearner(object):
             hx = torch.zeros(self.num_workers, self.lstm_size).to(device=self.device)
             cx = torch.zeros(self.num_workers, self.lstm_size).to(device=self.device)
         else:
-            pass # TODO: implement here
+            hx = torch.zeros(self.num_workers, self.lstm_size, 7, 7).to(device=self.device)
+            cx = torch.zeros(self.num_workers, self.lstm_size, 7, 7).to(device=self.device)
 
         while (not all(dones)) or (not self.queue.empty()):
             with torch.no_grad():
@@ -196,10 +201,8 @@ class LSTMLearner(object):
 
             # Update hidden states
             dones_tensor = torch.from_numpy(dones.astype(np.float32)).to(device=self.device)
-            if not self.use_clstm:
-                hx[dones_tensor == 1] = 0.; cx[dones_tensor == 1] = 0.
-            else:
-                pass # TODO: implement
+            hx[dones_tensor == 1] = 0.; cx[dones_tensor == 1] = 0.
+
             embed_tensor[dones_tensor == 1] = 0.
             embed_tensor[dones_tensor == 1, 0] = 1.
 
