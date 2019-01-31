@@ -49,5 +49,4 @@ class ConvLSTMPolicy(nn.Module):
         # passing joint state + action embedding thru LSTM
         output = torch.cat((output, embed), dim=1)
         h_out, c_out = self.lstm(output, (hx, cx))
-        output = h_out
-        return Categorical(logits=self.pi(output)), self.v(output), h_out, c_out
+        return Categorical(logits=self.pi(h_out)), self.v(h_out), h_out, c_out

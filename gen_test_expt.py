@@ -24,7 +24,7 @@ def main(args):
     save_dir = args.logdir + '/saves/'
     ckpt_files = [save_dir + x for x in os.listdir(save_dir) if '.pt' in x]
     for ck in ckpt_files:
-        cmd_ = 'python test_custom.py --env OriginalGame-v0 --test-eps 30 --save '
+        cmd_ = 'python test_custom.py --env CustomGame-v0 --test-eps 100 --save '
         cmd_ += '--checkpoint {}'.format(ck)
         os.system(cmd_)
     print("Done Testing Checkpoints...")
