@@ -38,11 +38,11 @@ class LSTMLearner(object):
         self.ent_coef = ent_coef
         self.gamma = gamma
         self.device = device
+        self.use_clstm = clstm
         if not self.use_clstm:
             self.lstm_size = 256
         else:
             self.lstm_size = 32
-        self.use_clstm = clstm
 
         # Sampler variables
         self.env_name = env_name
