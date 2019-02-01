@@ -45,14 +45,9 @@ class ConvLSTMCell(nn.Module):
         comb = torch.cat([x, hx], dim=1)  # concatenate along channel axis
         
         comb_conv = self.conv(comb)
-        cc_i, cc_f, cc_o, cc_g = torch.split(comb_conv, self.hidden_dim, dim=1) 
-        i = torch.sigmoid(cc_i)
-        f = torch.sigmoid(cc_f)
-        o = torch.sigmoid(cc_o)
-        g = torch.tanh(cc_g)
-
-        cx = f * cx + i * g
-        hx = o * torch.tanh(cx)
+        cc_i, cc_f, cc_o, cc_g = torch.split(comb_conv, self.hidden_dim, dim=1)
+        cx = torch.sigmoid(cc_f) * cx + torch.sigmoid(cc_i) * torch.tanh(cc_g)
+        hx = torch.sigmoid(cc_o) * torch.tanh(cx)
         return hx, cx
 
 class ConvCLSTMPolicy(nn.Module):
