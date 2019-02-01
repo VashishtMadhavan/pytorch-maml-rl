@@ -13,7 +13,7 @@ class CustomGameEnv(gym.Env):
 
         import importlib
         game_module = importlib.import_module('ple.games.customgame')
-        game = getattr(game_module, 'customgame')(difficulty=0)
+        game = getattr(game_module, 'customgame')()
 
         self.game_state = PLE(game, fps=30, display_screen=False)
         self._action_set = self.game_state.getActionSet()
@@ -33,9 +33,11 @@ class CustomGameEnv(gym.Env):
         self.game_state.init()
         return [seed]
 
-    # TODO: figure this out
     def reset_task(self, task):
-        self.game_state.game.easy_env_flag = 1.0 - self.game_state.game.easy_env_flag
+        self.game_state.game.set_task(task)
+
+    def get_task(self):
+        return self.curr_task
 
     def render(self, mode='human'):
         img = self._get_image()
@@ -51,6 +53,7 @@ class CustomGameEnv(gym.Env):
         self.observation_space = spaces.Box(low=0, high=255, shape=(self.screen_width, self.screen_height, 3))
         self.game_state.reset_game()
         state = self._get_image()
+        self.curr_task = self.game_state.game.get_task()
         return state
         
     def _get_image(self):
