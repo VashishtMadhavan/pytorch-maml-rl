@@ -58,8 +58,6 @@ def _worker(remote, parent_remote, env_fn_wrapper, queue, lock):
             elif cmd == 'reset_task':
                 env.unwrapped.reset_task(data)
                 remote.send(True)
-            elif cmd == 'get_task':
-                remote.send(env.unwrapped.get_task())
             elif cmd == 'render':
                 remote.send(env.render(*data[0], **data[1]))
             elif cmd == 'close':
@@ -118,11 +116,6 @@ class SubprocVecEnv(gym.Env):
     def reset_task(self, tasks):
         for remote, task in zip(self.remotes, tasks):
             remote.send(('reset_task', task))
-        return np.stack([remote.recv() for remote in self.remotes])
-
-    def get_task(self):
-        for remote in self.remotes:
-            remote.send(('get_task', None))
         return np.stack([remote.recv() for remote in self.remotes])
 
     def close(self):

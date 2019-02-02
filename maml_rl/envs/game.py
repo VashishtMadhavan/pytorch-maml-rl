@@ -34,10 +34,7 @@ class CustomGameEnv(gym.Env):
         return [seed]
 
     def reset_task(self, task):
-        self.game_state.game.set_task(task)
-
-    def get_task(self):
-        return self.curr_task
+        pass
 
     def render(self, mode='human'):
         img = self._get_image()
@@ -53,7 +50,6 @@ class CustomGameEnv(gym.Env):
         self.observation_space = spaces.Box(low=0, high=255, shape=(self.screen_width, self.screen_height, 3))
         self.game_state.reset_game()
         state = self._get_image()
-        self.curr_task = self.game_state.game.get_task()
         return state
         
     def _get_image(self):
