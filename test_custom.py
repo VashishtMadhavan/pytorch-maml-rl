@@ -7,13 +7,14 @@ import imageio
 from tqdm import tqdm
 
 import maml_rl.envs
-from maml_rl.policies.conv_lstm_policy import ConvLSTMPolicy
+from maml_rl.policies import ConvLSTMPolicy, ConvCLSTMPolicy
 
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--env", type=str, default='CustomGame-v0')
     parser.add_argument("--test-eps", type=int, default=10)
     parser.add_argument("--checkpoint", type=str)
+    parser.add_argument("--clstm", action="store_true")
     parser.add_argument("--render", action="store_true")
     parser.add_argument("--greedy", action="store_true")
     parser.add_argument("--random", action="store_true")
@@ -22,10 +23,15 @@ def parse_args():
     return parser.parse_args()
 
 
-def load_params(policy_path, env, device):
-    policy = ConvLSTMPolicy(
-        input_size=env.observation_space.shape,
-        output_size=env.action_space.n)
+def load_params(policy_path, env, device, clstm=False):
+    if not clstm:
+        policy = ConvLSTMPolicy(
+            input_size=env.observation_space.shape,
+            output_size=env.action_space.n)
+    else:
+        policy = ConvCLSTMPolicy(
+            input_size=env.observation_space.shape,
+            output_size=env.action_space.n)
     if device == 'cpu':
         policy.load_state_dict(torch.load(policy_path, map_location=device))
     else:
@@ -33,15 +39,19 @@ def load_params(policy_path, env, device):
     return policy
 
 
-def evaluate(env, policy, device, test_eps=10, greedy=False, render=False, random=False, record=False):
+def evaluate(env, policy, device, test_eps=10, greedy=False, render=False, random=False, record=False, clstm=False):
     num_actions = env.action_space.n; total_frames = []
     ep_rews = []; ep_steps = []
     for t in tqdm(range(test_eps)):
         obs = env.reset(); done = False
         embed_tensor = torch.zeros(1, num_actions + 2).to(device=device)
         embed_tensor[:, 0] = 1.
-        hx = torch.zeros(1, 256).to(device=device)
-        cx = torch.zeros(1, 256).to(device=device)
+        if not clstm:
+            hx = torch.zeros(1, 256).to(device=device)
+            cx = torch.zeros(1, 256).to(device=device)
+        else:
+            hx = torch.zeros(1, 32, 7, 7).to(device=device)
+            cx = torch.zeros(1, 32, 7, 7).to(device=device)
         total_rew = 0; tstep = 0
 
         while not done:
@@ -78,8 +88,9 @@ def main():
     args = parse_args()
     env = gym.make(args.env)
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    policy = load_params(args.checkpoint, env, device)
-    episode_rew, episode_steps = evaluate(env, policy, device, greedy=args.greedy, test_eps=args.test_eps, render=args.render, random=args.random, record=args.record)
+    policy = load_params(args.checkpoint, env, device, clstm=args.clstm)
+    episode_rew, episode_steps = evaluate(env, policy, device, greedy=args.greedy, test_eps=args.test_eps,
+        render=args.render, random=args.random, record=args.record, clstm=args.clstm)
 
     if args.save:
         batch = args.checkpoint.split('/')[-1].split('.')[0].split('-')[1]
