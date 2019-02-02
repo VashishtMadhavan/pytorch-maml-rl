@@ -193,10 +193,11 @@ class LSTMLearner(object):
                 actions = act_tensor.cpu().numpy()
                 old_values = values_tensor.squeeze().cpu().numpy()
                 embed = embed_tensor.cpu().numpy()
-            new_observations, rewards, dones, new_batch_ids, _ = self.envs.step(actions)
+            new_observations, rewards, dones, new_batch_ids, infos = self.envs.step(actions)
 
             # Update embeddings when episode is done
-            embed_temp = np.hstack((one_hot(actions, self.num_actions), rewards[:, None], dones[:, None]))
+            term_flags = np.array([inf['done'] for inf in infos])
+            embed_temp = np.hstack((one_hot(actions, self.num_actions), rewards[:, None], term_flags[:, None]))
             embed_tensor = torch.from_numpy(embed_temp).float().to(device=self.device)
 
             # Update hidden states

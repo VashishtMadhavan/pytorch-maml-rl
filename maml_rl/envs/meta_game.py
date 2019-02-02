@@ -26,8 +26,11 @@ class CustomGameMetaEnv(gym.Env):
 
         self.num_actions = len(self._action_set)
         self.viewer = None
-        self.task_counter = -1
+
+        # env tracking variables
+        self.done_counter = 0
         self.curr_task = None
+        self.t = 0
 
     def seed(self, seed=None):
         if not seed:
@@ -52,15 +55,12 @@ class CustomGameMetaEnv(gym.Env):
             self.viewer.imshow(img)
 
     def reset(self):
-        self.task_counter += 1
-        if self.task_counter == 2:
-            self.curr_task = None; self.task_counter = 0
-
-        self.game_state.set_task(self.curr_task)
         self.observation_space = spaces.Box(low=0, high=255, shape=(self.screen_width, self.screen_height, 3))
         self.game_state.reset_game()
         state = self._get_image()
         self.curr_task = self.game_state.game.get_task()
+        self.t = 0
+        self.game_state.game.set_task(self.curr_task)
         return state
         
     def _get_image(self):
@@ -71,4 +71,16 @@ class CustomGameMetaEnv(gym.Env):
         reward = self.game_state.act(self._action_set[action])
         state = self._get_image()
         terminal = self.game_state.game_over()
-        return state, reward, terminal, {}
+        self.t += 1
+        prev_done_counter = int(self.done_counter)
+        if terminal or self.t == 400:
+            self.done_counter += 1
+            if self.done_counter == 2:
+                self.done_counter = 0
+                self.curr_task = None
+                terminal = True
+            else:
+                state = self.reset()
+                terminal = False
+        # TODO: figure out how to send done signal to the optimizer...
+        return state, reward, terminal, {'done': float(abs(self.done_counter - prev_done_counter))}
