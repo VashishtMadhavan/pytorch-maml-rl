@@ -77,10 +77,9 @@ class CustomGameMetaEnv(gym.Env):
             self.done_counter += 1
             if self.done_counter == 2:
                 self.done_counter = 0
-                self.curr_task = None
+                self.game_state.game.set_task(None)
                 terminal = True
             else:
                 state = self.reset()
                 terminal = False
-        # TODO: figure out how to send done signal to the optimizer...
         return state, reward, terminal, {'done': float(abs(self.done_counter - prev_done_counter))}
