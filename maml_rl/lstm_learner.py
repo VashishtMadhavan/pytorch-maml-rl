@@ -196,7 +196,10 @@ class LSTMLearner(object):
             new_observations, rewards, dones, new_batch_ids, infos = self.envs.step(actions)
 
             # Update embeddings when episode is done
-            term_flags = np.array([inf['done'] for inf in infos])
+            if 'done' not in infos[0]:
+                term_flags = np.array(dones)
+            else:
+                term_flags = np.array([inf['done'] for inf in infos])
             embed_temp = np.hstack((one_hot(actions, self.num_actions), rewards[:, None], term_flags[:, None]))
             embed_tensor = torch.from_numpy(embed_temp).float().to(device=self.device)
 
