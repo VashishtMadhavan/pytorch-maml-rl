@@ -50,6 +50,7 @@ class LSTMLearner(object):
         self.batch_size = batch_size
         self.num_workers = num_workers
         self.queue = mp.Queue()
+        self.env_name = env_name
         self.envs = SubprocVecEnv([make_env(env_name) for _ in range(num_workers)], queue=self.queue)
         self._env = gym.make(env_name)
         self.obs_shape = self.envs.observation_space.shape
@@ -196,16 +197,14 @@ class LSTMLearner(object):
             new_observations, rewards, dones, new_batch_ids, infos = self.envs.step(actions)
 
             # Update embeddings when episode is done
-            if 'done' not in infos[0]:
+            if 'v0' in self.env_name:
                 term_flags = np.array(dones)
             else:
-                term_flags = []
-                for inf in infos:
-                    if 'done' in inf:
-                        term_flags.append(inf['done'])
-                    else:
-                        term_flags.append(1.0)
-                term_flags = np.array(term_flags)
+                term_flags = np.ones(len(infos))
+                for k,v in enumerate(infos):
+                    if 'done' in v:
+                        term_flags[k] = v['done']
+
             embed_temp = np.hstack((one_hot(actions, self.num_actions), rewards[:, None], term_flags[:, None]))
             embed_tensor = torch.from_numpy(embed_temp).float().to(device=self.device)
 
