@@ -4,43 +4,43 @@ import torch.nn.functional as F
 from torch.distributions import Categorical
 
 from collections import OrderedDict
-from maml_rl.policies.policy import Policy, weight_init
+from maml_rl.policies.policy import Policy
+import numpy as np
 
-class ConvPolicy(Policy):
+class ConvPolicy(nn.Module):
     """
     Baseline DQN Architecture
     """
-    def __init__(self, input_size, output_size, nonlinearity=F.relu):
-        super(ConvPolicy, self).__init__(input_size=input_size, output_size=output_size)
+    def __init__(self, input_size, output_size, nonlinearity=F.relu, use_bn=False):
+        super(ConvPolicy, self).__init__()
+        self.input_size = input_size
+        self.output_size = output_size
         self.nonlinearity = nonlinearity
+        self.use_bn = use_bn
 
-        self.add_module('conv1', nn.Conv2d(input_size[-1], 16, kernel_size=8, stride=4))
-        self.add_module('conv2', nn.Conv2d(16, 32, kernel_size=4, stride=2))
-        self.add_module('fc1', nn.Linear(9 * 9 * 32, 256))
-        self.add_module('pi', nn.Linear(256, output_size))
-        self.add_module('v', nn.Linear(256, 1))
-        self.apply(weight_init)
+        self.conv1 = nn.Conv2d(input_size[-1], 32, kernel_size=8, stride=4)
+        self.conv2 = nn.Conv2d(32, 64, kernel_size=4, stride=2)
+        self.conv3 = nn.Conv2d(64, 64, kernel_size=3, stride=1)
+        self.fc = nn.Linear(7 * 7 * 64, 512)
+        if self.use_bn:
+            self.bn1 = nn.BatchNorm2d(32)
+            self.bn2 = nn.BatchNorm2d(64)
+            self.bn3 = nn.BatchNorm2d(64)
 
-    def forward(self, x, params=None):
-        if params is None:
-            params = OrderedDict(self.named_parameters())
-        featurize = len(x.size()) > 4
-        if featurize:
-            T, B, H, W, C = x.size()
-            output = x.view(T * B, H, W, C)
-            output = output.permute(0, 3, 1, 2)
+        self.pi = nn.Linear(512, self.output_size)
+        self.v = nn.Linear(512, 1)
+
+    def forward(self, x):
+        # state embedding
+        output = x.permute(0, 3, 1, 2)
+        if self.use_bn:
+            output = self.nonlinearity(self.bn1(self.conv1(output)))
+            output = self.nonlinearity(self.bn2(self.conv2(output)))
+            output = self.nonlinearity(self.bn3(self.conv3(output)))
         else:
-            output = x.permute(0, 3, 1, 2)
-        output = F.conv2d(output, weight=params['conv1.weight'], bias=params['conv1.bias'], stride=4)
-        output = self.nonlinearity(output)
-        output = F.conv2d(output, weight=params['conv2.weight'], bias=params['conv2.bias'], stride=2)
-        output = self.nonlinearity(output)
+            output = self.nonlinearity(self.conv1(output))
+            output = self.nonlinearity(self.conv2(output))
+            output = self.nonlinearity(self.conv3(output))
         output = output.view(output.size(0), -1)
-        output = F.linear(output, weight=params['fc1.weight'], bias=params['fc1.bias'])
-        output = self.nonlinearity(output)
-        logits = F.linear(output, weight=params['pi.weight'], bias=params['pi.bias'])
-        values = F.linear(output, weight=params['v.weight'], bias=params['v.bias'])
-        if featurize:
-            logits = logits.view(T, B, -1)
-            values = values.view(T, B, -1)
-        return Categorical(logits=logits), values
+        output = self.nonlinearity(self.fc(output))
+        return Categorical(logits=self.pi(output)), self.v(output)

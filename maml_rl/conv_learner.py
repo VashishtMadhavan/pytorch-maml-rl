@@ -3,38 +3,23 @@ from maml_rl.utils.torch_utils import (weighted_mean, detach_distribution, weigh
 import torch.optim as optim
 import gym
 import numpy as np
-import multiprocessing as mp
-
 from maml_rl.envs.subproc_vec_env import SubprocVecEnv
-from maml_rl.episode import LSTMBatchEpisodes
-from maml_rl.policies import ConvLSTMPolicy, ConvCLSTMPolicy
+import multiprocessing as mp
+from maml_rl.episode import PPOEpisodes
+from maml_rl.policies import ConvPolicy
+from maml_rl.lstm_learner import make_env
 
-def make_env(env_name):
-    def _make_env():
-        return gym.make(env_name)
-    return _make_env
-
-def one_hot(actions, num_actions):
-    x = np.zeros((len(actions), num_actions))
-    x[np.arange(len(actions)), actions] = 1.
-    return x
-
-class LSTMLearner(object):
+class ConvLearner(object):
     """
-    LSTM Learner using A2C/PPO
+    Conv. Nature Learner using A2C/PPO
     """
     def __init__(self, env_name, batch_size, num_workers, num_batches=1000,
-                gamma=0.95, lr=0.01, tau=1.0, ent_coef=.01, vf_coef=0.5, lstm_size=256, clip_frac=0.2, device='cpu',
-                surr_epochs=4, clstm=False, surr_batches=4, l2_coef=0., use_bn=False, max_grad_norm=0.5):
+                gamma=0.95, lr=0.01, tau=1.0, ent_coef=.01, vf_coef=0.5, clip_frac=0.2, device='cpu',
+                surr_epochs=4, surr_batches=4, l2_coef=0., use_bn=False, max_grad_norm=0.5):
         self.vf_coef = vf_coef
         self.ent_coef = ent_coef
         self.gamma = gamma
         self.device = device
-        self.use_clstm = clstm
-        if not self.use_clstm:
-            self.lstm_size = 256
-        else:
-            self.lstm_size = 32
 
         # Sampler variables
         self.env_name = env_name
@@ -47,10 +32,7 @@ class LSTMLearner(object):
         self._env = gym.make(env_name)
         self.obs_shape = self.envs.observation_space.shape
         self.num_actions = self.envs.action_space.n
-        if not self.use_clstm:
-            self.policy = ConvLSTMPolicy(input_size=self.obs_shape, output_size=self.num_actions, use_bn=use_bn)
-        else:
-            self.policy = ConvCLSTMPolicy(input_size=self.obs_shape, output_size=self.num_actions, use_bn=use_bn)
+        self.policy = ConvPolicy(input_size=self.obs_shape, output_size=self.num_actions, use_bn=use_bn)
 
         # Optimization Variables
         self.lr = lr
@@ -69,15 +51,8 @@ class LSTMLearner(object):
     def _forward_policy(self, episodes, ratio=False):
         T = episodes.observations.size(0)
         values, log_probs, entropy = [], [], []
-        if not self.use_clstm:
-            hx = torch.zeros(self.batch_size, self.lstm_size).to(device=self.device)
-            cx = torch.zeros(self.batch_size, self.lstm_size).to(device=self.device)
-        else:
-            hx = torch.zeros(self.batch_size, self.lstm_size, 7, 7).to(device=self.device)
-            cx = torch.zeros(self.batch_size, self.lstm_size, 7, 7).to(device=self.device)
-
         for t in range(T):
-            pi, v, hx, cx = self.policy(episodes.observations[t], hx, cx, episodes.embeds[t])
+            pi, v = self.policy(episodes.observations[t])
             values.append(v)
             entropy.append(pi.entropy())
             if ratio:
@@ -90,7 +65,6 @@ class LSTMLearner(object):
         advantages = weighted_normalize(advantages, weights=episodes.mask)
         if log_probs.dim() > 2:
             log_probs = torch.sum(log_probs, dim=2)
-
         return log_probs, advantages, values, entropy
 
     def loss(self, episodes):
@@ -156,7 +130,7 @@ class LSTMLearner(object):
         """
         Sample trajectories
         """
-        episodes = LSTMBatchEpisodes(batch_size=self.batch_size, gamma=self.gamma, device=self.device)
+        episodes = PPOEpisodes(batch_size=self.batch_size, gamma=self.gamma, device=self.device)
         for i in range(self.batch_size):
             self.queue.put(i)
         for _ in range(self.num_workers):
@@ -166,48 +140,19 @@ class LSTMLearner(object):
         observations, batch_ids = self.envs.reset()
         dones = [False]
 
-        embed_tensor = torch.zeros(self.num_workers, self.num_actions + 2).to(device=self.device)
-        embed_tensor[:, 0] = 1.
-        if not self.use_clstm:
-            hx = torch.zeros(self.num_workers, self.lstm_size).to(device=self.device)
-            cx = torch.zeros(self.num_workers, self.lstm_size).to(device=self.device)
-        else:
-            hx = torch.zeros(self.num_workers, self.lstm_size, 7, 7).to(device=self.device)
-            cx = torch.zeros(self.num_workers, self.lstm_size, 7, 7).to(device=self.device)
-
         while (not all(dones)) or (not self.queue.empty()):
             with torch.no_grad():
                 obs_tensor = torch.from_numpy(observations).to(device=self.device)
-                act_dist, values_tensor, hx, cx = self.policy(obs_tensor, hx, cx, embed_tensor)
+                act_dist, values_tensor = self.policy(obs_tensor)
                 act_tensor = act_dist.sample()
 
                 # cpu variables for logging
                 log_probs = act_dist.log_prob(act_tensor).cpu().numpy()
                 actions = act_tensor.cpu().numpy()
                 old_values = values_tensor.squeeze().cpu().numpy()
-                embed = embed_tensor.cpu().numpy()
+
             new_observations, rewards, dones, new_batch_ids, infos = self.envs.step(actions)
-
-            # Update embeddings when episode is done
-            if 'v0' in self.env_name:
-                term_flags = np.array(dones)
-            else:
-                term_flags = np.ones(len(infos))
-                for k,v in enumerate(infos):
-                    if 'done' in v:
-                        term_flags[k] = v['done']
-
-            embed_temp = np.hstack((one_hot(actions, self.num_actions), rewards[:, None], term_flags[:, None]))
-            embed_tensor = torch.from_numpy(embed_temp).float().to(device=self.device)
-
-            # Update hidden states
-            dones_tensor = torch.from_numpy(dones.astype(np.float32)).to(device=self.device)
-            hx[dones_tensor == 1] = 0.; cx[dones_tensor == 1] = 0.
-
-            embed_tensor[dones_tensor == 1] = 0.
-            embed_tensor[dones_tensor == 1, 0] = 1.
-
-            episodes.append(observations, actions, rewards, batch_ids, log_probs, old_values, embed)
+            episodes.append(observations, actions, rewards, batch_ids, log_probs, old_values)
             observations, batch_ids = new_observations, new_batch_ids
         return episodes
 
