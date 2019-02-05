@@ -87,7 +87,7 @@ if __name__ == '__main__':
     import os
     import glob
 
-    parser = argparse.ArgumentParser(description='Reinforcement learning with LSTMs')
+    parser = argparse.ArgumentParser(description='Reinforcement learning with PPO')
 
     # General
     parser.add_argument('--env', type=str)
