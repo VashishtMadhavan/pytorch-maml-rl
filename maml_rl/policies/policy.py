@@ -28,13 +28,13 @@ class Policy(nn.Module):
         return updated_params
 
 class ResnetBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, nonlinearity=F.relu, use_bn=False):
+    def __init__(self, in_channels, out_channels, use_bn=False):
         super(ResnetBlock, self).__init__()
         self.in_channels = in_channels
         self.out_channels = out_channels
-        self.nonlin = nonlinearity
         self.use_bn = use_bn
 
+        self.relu = nn.ReLU(inplace=True)
         self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=1, padding=1, bias=False)
         self.pool1 = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
 
@@ -59,32 +59,32 @@ class ResnetBlock(nn.Module):
         out = self.pool1(out)
 
         identity = out
-        out = self.nonlin(out)
+        out = self.relu(out)
         if self.use_bn:
-            out = self.nonlin(self.bn2(self.conv2(out)))
+            out = self.relu(self.bn2(self.conv2(out)))
             out = self.bn3(self.conv3(out)) + identity
         else:
-            out = self.nonlin(self.conv2(out))
+            out = self.relu(self.conv2(out))
             out = self.conv3(out) + identity
 
         identity = out
-        out = self.nonlin(out)
+        out = self.relu(out)
         if self.use_bn:
-            out = self.nonlin(self.bn4(self.conv4(out)))
+            out = self.relu(self.bn4(self.conv4(out)))
             out = self.bn5(self.conv5(out)) + identity
         else:
-            out = self.nonlin(self.conv4(out))
+            out = self.relu(self.conv4(out))
             out = self.conv5(out) + identity
         return out
 
 
 class NatureCnn(nn.Module):
-    def __init__(self, input_size, use_bn=False, nonlinearity=F.relu):
+    def __init__(self, input_size, use_bn=False):
         super(NatureCnn, self).__init__()
         self.input_size = input_size
         self.use_bn = use_bn
-        self.nonlin = nonlinearity
 
+        self.relu = nn.ReLU(inplace=True)
         self.conv1 = nn.Conv2d(input_size[-1], 32, kernel_size=8, stride=4)
         self.conv2 = nn.Conv2d(32, 64, kernel_size=4, stride=2)
         self.conv3 = nn.Conv2d(64, 64, kernel_size=3, stride=1)
@@ -98,27 +98,27 @@ class NatureCnn(nn.Module):
     def forward(self, x):
         out = x.permute(0, 3, 1, 2)
         if self.use_bn:
-            out = self.nonlin(self.bn1(self.conv1(out)))
-            out = self.nonlin(self.bn2(self.conv2(out)))
-            out = self.nonlin(self.bn3(self.conv3(out)))
+            out = self.relu(self.bn1(self.conv1(out)))
+            out = self.relu(self.bn2(self.conv2(out)))
+            out = self.relu(self.bn3(self.conv3(out)))
         else:
-            out = self.nonlin(self.conv1(out))
-            out = self.nonlin(self.conv2(out))
-            out = self.nonlin(self.conv3(out))
+            out = self.relu(self.conv1(out))
+            out = self.relu(self.conv2(out))
+            out = self.relu(self.conv3(out))
         out = out.view(out.size(0), -1)
-        out = self.nonlin(self.fc(out))
+        out = self.relu(self.fc(out))
         return out
 
 
 class ImpalaCnn(nn.Module):
-    def __init__(self, input_size, use_bn=False, nonlinearity=F.relu):
+    def __init__(self, input_size, use_bn=False):
         super(ImpalaCnn, self).__init__()
         self.input_size = input_size
-        self.nonlin = nonlinearity
+        self.relu = nn.ReLU(inplace=True)
 
-        self.block1 = ResnetBlock(in_channels=input_size[-1], out_channels=16, nonlinearity=nonlinearity, use_bn=use_bn)
-        self.block2 = ResnetBlock(in_channels=16, out_channels=32, nonlinearity=nonlinearity, use_bn=use_bn)
-        self.block3 = ResnetBlock(in_channels=32, out_channels=32, nonlinearity=nonlinearity, use_bn=use_bn)
+        self.block1 = ResnetBlock(in_channels=input_size[-1], out_channels=16, use_bn=use_bn)
+        self.block2 = ResnetBlock(in_channels=16, out_channels=32, use_bn=use_bn)
+        self.block3 = ResnetBlock(in_channels=32, out_channels=32, use_bn=use_bn)
         self.fc = nn.Linear(11 * 11 * 32, 256)
 
     def forward(self, x):
@@ -128,8 +128,8 @@ class ImpalaCnn(nn.Module):
         out = self.block3(out)
 
         out = out.view(out.size(0), -1)
-        out = self.nonlin(out)
-        out = self.nonlin(self.fc(out))
+        out = self.relu(out)
+        out = self.relu(self.fc(out))
         return out
 
 

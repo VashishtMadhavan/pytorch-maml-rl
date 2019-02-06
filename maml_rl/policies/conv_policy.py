@@ -11,19 +11,18 @@ class ConvPolicy(nn.Module):
     """
     Baseline DQN Architecture
     """
-    def __init__(self, input_size, output_size, nonlinearity=F.relu, use_bn=False, cnn_type='nature'):
+    def __init__(self, input_size, output_size use_bn=False, cnn_type='nature'):
         super(ConvPolicy, self).__init__()
         self.input_size = input_size
         self.output_size = output_size
-        self.nonlinearity = nonlinearity
         self.use_bn = use_bn
         self.cnn_type = cnn_type
 
         if self.cnn_type == 'nature':
-            self.encoder = NatureCnn(input_size=input_size, use_bn=use_bn, nonlinearity=nonlinearity)
+            self.encoder = NatureCnn(input_size=input_size, use_bn=use_bn)
             hidden_size = 512
         elif self.cnn_type == 'impala':
-            self.encoder = ImpalaCnn(input_size=input_size, use_bn=use_bn, nonlinearity=nonlinearity)
+            self.encoder = ImpalaCnn(input_size=input_size, use_bn=use_bn)
             hidden_size = 256
 
         self.pi = nn.Linear(hidden_size, self.output_size)
