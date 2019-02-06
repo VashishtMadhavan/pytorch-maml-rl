@@ -4,7 +4,8 @@ import numpy as np
 import torch
 import time
 import json
-from maml_rl.lstm_learner import LSTMLearner, ConvLearner
+from maml_rl.lstm_learner import LSTMLearner
+from maml_rl.conv_learner import ConvLearner
 
 def hdfs_save(hdfs_dir, filename):
     os.system('/opt/hadoop/latest/bin/hdfs dfs -copyFromLocal -f {} {}'.format(filename, hdfs_dir))
