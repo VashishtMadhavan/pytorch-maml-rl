@@ -38,7 +38,7 @@ def main(args):
         json.dump(config, f, indent=2)
 
     learner = LSTMLearner(env_name=args.env, batch_size=args.batch_size, ent_coef=args.ent_coef,
-        num_workers=args.workers, num_batches=args.train_iters, gamma=args.gamma, use_bn=args.use_bn,
+        num_workers=args.workers, num_batches=args.train_iters, gamma=args.gamma, use_bn=args.use_bn, cnn_type=args.cnn_type,
         lr=args.lr, tau=args.tau, vf_coef=args.vf_coef, l2_coef=args.l2_coef, device=args.device, clstm=args.clstm)
 
     if args.load and hdfs_found:
@@ -106,6 +106,8 @@ if __name__ == '__main__':
     parser.add_argument('--hdfs', action='store_false')
     parser.add_argument('--clstm', action='store_true', help='whether or not to use a conv-lstm')
     parser.add_argument('--load', action='store_true', help='loading previous experiment')
+
+    parser.add_argument('--cnn_type', type=str, default='nature', help='which type of network encoder to use: (nature, impala)')
     parser.add_argument('--lr', type=float, default=2.5e-4)
     parser.add_argument('--gamma', type=float, default=0.99)
     parser.add_argument('--tau', type=float, default=0.95, help='discount factor for GAE')

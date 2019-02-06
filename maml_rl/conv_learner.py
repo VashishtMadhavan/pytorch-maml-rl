@@ -15,7 +15,7 @@ class ConvLearner(object):
     """
     def __init__(self, env_name, batch_size, num_workers, num_batches=1000,
                 gamma=0.95, lr=0.01, tau=1.0, ent_coef=.01, vf_coef=0.5, clip_frac=0.2, device='cpu',
-                surr_epochs=4, surr_batches=4, l2_coef=0., use_bn=False, max_grad_norm=0.5):
+                surr_epochs=4, surr_batches=4, l2_coef=0., use_bn=False, max_grad_norm=0.5, cnn_type='nature'):
         self.vf_coef = vf_coef
         self.ent_coef = ent_coef
         self.gamma = gamma
@@ -32,7 +32,7 @@ class ConvLearner(object):
         self._env = gym.make(env_name)
         self.obs_shape = self.envs.observation_space.shape
         self.num_actions = self.envs.action_space.n
-        self.policy = ConvPolicy(input_size=self.obs_shape, output_size=self.num_actions, use_bn=use_bn)
+        self.policy = ConvPolicy(input_size=self.obs_shape, output_size=self.num_actions, use_bn=use_bn, cnn_type=cnn_type)
 
         # Optimization Variables
         self.lr = lr

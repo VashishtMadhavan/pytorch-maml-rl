@@ -4,51 +4,8 @@ import torch.nn.functional as F
 from torch.distributions import Categorical
 
 from collections import OrderedDict
-from maml_rl.policies.policy import Policy
+from maml_rl.policies.policy import ConvLSTMCell
 import numpy as np
-
-
-class ConvLSTMCell(nn.Module):
-    def __init__(self, input_size, input_dim, hidden_dim, kernel_size, bias=True):
-        """
-        Initialize ConvLSTM cell.
-        
-        Parameters
-        ----------
-        input_size: (int, int)
-            Height and width of input tensor as (height, width).
-        input_dim: int
-            Number of channels of input tensor.
-        hidden_dim: int
-            Number of channels of hidden state.
-        kernel_size: (int, int)
-            Size of the convolutional kernel.
-        bias: bool
-            Whether or not to add the bias.
-        """
-        super(ConvLSTMCell, self).__init__()
-        self.height, self.width = input_size
-        self.input_dim  = input_dim
-        self.hidden_dim = hidden_dim
-        self.kernel_size = kernel_size
-        self.padding = kernel_size // 2
-        self.bias = bias
-        
-        self.conv = nn.Conv2d(in_channels=self.input_dim + self.hidden_dim,
-                              out_channels=4 * self.hidden_dim,
-                              kernel_size=self.kernel_size,
-                              padding=self.padding,
-                              bias=self.bias)
-
-    def forward(self, x, state):
-        hx, cx = state
-        comb = torch.cat([x, hx], dim=1)  # concatenate along channel axis
-        
-        comb_conv = self.conv(comb)
-        cc_i, cc_f, cc_o, cc_g = torch.split(comb_conv, self.hidden_dim, dim=1)
-        cx = torch.sigmoid(cc_f) * cx + torch.sigmoid(cc_i) * torch.tanh(cc_g)
-        hx = torch.sigmoid(cc_o) * torch.tanh(cx)
-        return hx, cx
 
 class ConvCLSTMPolicy(nn.Module):
     """
