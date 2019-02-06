@@ -11,7 +11,7 @@ class ConvPolicy(nn.Module):
     """
     Baseline DQN Architecture
     """
-    def __init__(self, input_size, output_size use_bn=False, cnn_type='nature'):
+    def __init__(self, input_size, output_size, use_bn=False, cnn_type='nature'):
         super(ConvPolicy, self).__init__()
         self.input_size = input_size
         self.output_size = output_size
