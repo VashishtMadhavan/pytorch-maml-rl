@@ -192,7 +192,10 @@ class LSTMLearner(object):
             if 'v0' in self.env_name:
                 term_flags = np.array(dones)
             else:
-                term_flags = np.array([np.sign(inf['done']) for inf in infos])
+                term_flags = np.ones(len(infos))
+                for k,v in enumerate(infos):
+                    if 'done' in v:
+                        term_flags[k] = np.sign(v['done'])
 
             embed_temp = np.hstack((one_hot(actions, self.num_actions), rewards[:, None], term_flags[:, None]))
             embed_tensor = torch.from_numpy(embed_temp).float().to(device=self.device)
