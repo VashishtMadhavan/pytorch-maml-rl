@@ -1,5 +1,5 @@
 from gym.envs.registration import load
-from gym.wrappers.atari_wrappers import WarpFrame, ScaledFloatFrame, MaxAndSkipEnv, ClipRewardEnv, FrameStack
+from .wrappers import WarpFrame, ScaledFloatFrame, MaxAndSkipEnv, ClipRewardEnv, FrameStack
 from .normalized_env import NormalizedActionWrapper
 
 def mujoco_wrapper(entry_point, **kwargs):
