@@ -14,6 +14,7 @@ def parse_args():
     parser.add_argument("--env", type=str, default='CustomGame-v0')
     parser.add_argument("--test-eps", type=int, default=10)
     parser.add_argument("--checkpoint", type=str)
+    parser.add_argument("--cnn_type", type=str, default='nature')
     parser.add_argument("--clstm", action="store_true")
     parser.add_argument("--render", action="store_true")
     parser.add_argument("--greedy", action="store_true")
@@ -23,11 +24,12 @@ def parse_args():
     return parser.parse_args()
 
 
-def load_params(policy_path, env, device, clstm=False):
+def load_params(policy_path, env, device, clstm=False, cnn_type='nature'):
     if not clstm:
         policy = ConvLSTMPolicy(
             input_size=env.observation_space.shape,
-            output_size=env.action_space.n)
+            output_size=env.action_space.n,
+            cnn_type=cnn_type)
     else:
         policy = ConvCLSTMPolicy(
             input_size=env.observation_space.shape,
@@ -88,7 +90,7 @@ def main():
     args = parse_args()
     env = gym.make(args.env)
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    policy = load_params(args.checkpoint, env, device, clstm=args.clstm)
+    policy = load_params(args.checkpoint, env, device, clstm=args.clstm, cnn_type=args.cnn_type)
     episode_rew, episode_steps = evaluate(env, policy, device, greedy=args.greedy, test_eps=args.test_eps,
         render=args.render, random=args.random, record=args.record, clstm=args.clstm)
 

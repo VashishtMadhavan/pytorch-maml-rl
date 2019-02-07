@@ -11,14 +11,14 @@ class ConvCLSTMPolicy(nn.Module):
     """
     Baseline DQN Architecture
     """
-    def __init__(self, input_size, output_size, nonlinearity=F.relu, use_bn=False):
+    def __init__(self, input_size, output_size, use_bn=False):
         super(ConvCLSTMPolicy, self).__init__()
         self.input_size = input_size
         self.output_size = output_size
-        self.nonlinearity = nonlinearity
         self.embed_dim = self.output_size + 2
         self.use_bn = use_bn
 
+        self.relu = nn.ReLU(inplace=True)
         self.conv1 = nn.Conv2d(input_size[-1], 32, kernel_size=8, stride=4)
         self.conv2 = nn.Conv2d(32, 64, kernel_size=4, stride=2)
         self.conv3 = nn.Conv2d(64, 64, kernel_size=3, stride=1)
@@ -32,9 +32,9 @@ class ConvCLSTMPolicy(nn.Module):
     def forward(self, x, hx, cx, embed):
         # state embedding
         output = x.permute(0, 3, 1, 2)
-        output = self.nonlinearity(self.conv1(output))
-        output = self.nonlinearity(self.conv2(output))
-        output = self.nonlinearity(self.conv3(output))
+        output = self.relu(self.conv1(output))
+        output = self.relu(self.conv2(output))
+        output = self.relu(self.conv3(output))
         
         # tiling the embedding to match shape of the conv tensor
         e_t = embed.unsqueeze(-1).unsqueeze(-1)
@@ -43,5 +43,5 @@ class ConvCLSTMPolicy(nn.Module):
 
         h_out, c_out = self.conv_lstm(output, (hx, cx))
         output = h_out.view(h_out.size(0), -1)
-        output = self.nonlinearity(self.fc(output))
+        output = self.relu(self.fc(output))
         return Categorical(logits=self.pi(output)), self.v(output), h_out, c_out
