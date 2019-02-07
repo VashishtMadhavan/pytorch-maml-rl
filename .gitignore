@@ -6,6 +6,9 @@ ailabs_util/
 test_saves/
 visualize_atari/
 quicksilver_config.json
+.build*/
+.generated/
+*.egg-info/
 
 # C extensions
 *.so
