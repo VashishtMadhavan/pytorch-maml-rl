@@ -24,7 +24,8 @@ RUN /bin/bash -c "source /home/env/bin/activate && \
     cd /home/work && \
     git clone https://github.com/VashishtMadhavan/PyGame-Learning-Environment.git && \
     pip install -e '/home/work/PyGame-Learning-Environment' && \
-    pip install /home/work/ailabs_util && \ 
+    pip install /home/work/ailabs_util && \
+    pip install https://github.com/openai/baselines/archive/7139a66d333b94c2dafc4af35f6a8c7598361df6.zip && \
     git clone https://github.com/VashishtMadhavan/gym.git && \
     pip install -e '/home/work/gym'"
 
