@@ -13,7 +13,7 @@ unique_maps = []
 env = gym.make(args.env)
 for t in tqdm(range(args.test_eps)):
 	obs = env.reset()
-	map_t = env.unwrapped.game_state.game.newGame.map
+	map_t = env.unwrapped.game_state.game.newGame.map.flatten()
 	map_t[map_t == 21] = 0; map_t[map_t == 22] = 0
 	map_string = ''.join(map(str, list(map_t)))
 	if map_string not in unique_maps:
