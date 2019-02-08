@@ -6,7 +6,7 @@ FROM opus-deep-learning:master-prod-2018_7_24_5_17_47
 
 RUN /bin/bash -c "cd /home && \
     apt-get update && \
-    apt-get install -y tmux cmake python-opencv qt5-default pkg-config && \
+    apt-get install -y tmux cmake python-opencv pkg-config && \
     pip install virtualenv && \
     virtualenv -p python3 env --system-site-packages && \
     source /home/env/bin/activate && \
@@ -24,16 +24,9 @@ RUN /bin/bash -c "source /home/env/bin/activate && \
     cd /home/work && \
     git clone https://github.com/VashishtMadhavan/PyGame-Learning-Environment.git && \
     pip install -e '/home/work/PyGame-Learning-Environment' && \
-    git clone https://github.com/pytorch/contrib.git && \
-    pip install -e '/home/work/contrib' && \
     pip install /home/work/ailabs_util && \ 
     git clone https://github.com/VashishtMadhavan/gym.git && \
     pip install -e '/home/work/gym'"
-
-# Make Coinrun environment
-RUN /bin/bash -c "source /home/env/bin/activate && \
-    cd /home/work/maml_rl/envs/coinrun/ && \
-    make'"
 
 ENV LC_ALL C.UTF-8
 ENV LANG C.UTF-8
