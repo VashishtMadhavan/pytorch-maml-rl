@@ -43,7 +43,8 @@ def main(args):
 
     if args.load and hdfs_found:
         # loading last checkpoint
-        save_filename = max(glob.glob(save_folder + '*.pt'), key=lambda x: int(x.split('-')[-1].split('.')[0]))
+        save_policy_files = [x for x in glob.glob(save_folder + "*.pt") if 'final' not in x]
+        save_filename = max(save_policy_files, key=lambda x: int(x.split('-')[-1].split('.')[0]))
         learner.policy.load_state_dict(torch.load(save_filename))
         batch = int(save_filename.split('-')[-1].split('.')[0])
 
@@ -86,7 +87,7 @@ def main(args):
         batch += 1
 
     # Saving the Final Policy
-    with open(os.path.join(save_folder, 'final.pt'), 'wb') as f:
+    with open(os.path.join(save_folder, 'policy-{0}.pt'.format(batch)), 'wb') as f:
         torch.save(learner.policy.state_dict(), f)
 
     learner.envs.close()
