@@ -19,6 +19,10 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--env", type=str, default='CustomGame-v0')
     parser.add_argument("--checkpoint", type=str)
+
+    parser.add_argument("--D", type=int, default=1)
+    parser.add_argument("--N", type=int, default=1)
+    parser.add_argument("--cnn_type", type=str, default='nature')
     parser.add_argument("--render", action="store_true")
     return parser.parse_args()
 
@@ -35,8 +39,8 @@ def rollout(env, policy, device, render=False):
     obs = env.reset(); done = False
     embed_tensor = torch.zeros(1, A + 2).to(device=device)
     embed_tensor[:, 0] = 1.
-    hx = torch.zeros(1, 256).to(device=device)
-    cx = torch.zeros(1, 256).to(device=device)
+    hx = torch.zeros(policy.D, 1, 256).to(device=device)
+    cx = torch.zeros(policy.D, 1, 256).to(device=device)
 
     while not done:
         if render: env.render()
@@ -45,11 +49,15 @@ def rollout(env, policy, device, render=False):
         
         action = action_dist.sample().cpu().numpy()
         obs, rew, done, _ = env.step(action[0])
+        if 'v0' in env.spec.id:
+            term_flag = float(done)
+        else:
+            term_flag = np.sign(info['done']) if 'done' in info else 0.0
 
         embed_arr = np.zeros(A + 2)
         embed_arr[action[0]] = 1.
         embed_arr[-2] = rew
-        embed_arr[-1] = float(done)
+        embed_arr[-1] = term_flag
         embed_tensor = torch.from_numpy(embed_arr[None]).float().to(device=device)
 
         history['ins'].append(np.array(obs)[None])
@@ -114,7 +122,7 @@ if __name__=='__main__':
     act_dim = env.action_space.n
 
     # load model
-    model = ConvLSTMPolicy(input_size=obs_shape, output_size=act_dim)
+    model = ConvLSTMPolicy(input_size=obs_shape, output_size=act_dim, cnn_type=args.cnn_type, D=args.D, N=args.N)
     model.load_state_dict(torch.load(args.checkpoint, map_location='cpu'))
 
     # rollout and get saliency maps
