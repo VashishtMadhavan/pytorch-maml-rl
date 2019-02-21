@@ -1,6 +1,11 @@
 import torch
 from torch.distributions import Categorical, Normal
 
+def total_rewards(episodes_rewards, aggregation=torch.mean):
+    rewards = torch.mean(torch.stack([aggregation(torch.sum(rewards, dim=0))
+        for rewards in episodes_rewards], dim=0))
+    return rewards.item()
+
 def weighted_mean(tensor, dim=None, weights=None):
     if weights is None:
         out = torch.mean(tensor)

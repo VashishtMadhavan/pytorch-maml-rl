@@ -12,6 +12,7 @@ import time
 import json
 import argparse
 import maml_rl.envs
+import os
 
 """
 Training beta-VAEs to learn disentagled representations
@@ -83,8 +84,6 @@ def main(args):
 	model = BetaVAE(input_size=1, hidden_size=args.hidden).to(device)
 	optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 
-	import pdb; pdb.set_trace()
-
 	# Dataset Loading
 	# TOOD: replace with GYM data that was collected....
 	data_transform = transforms.Compose([
@@ -96,6 +95,10 @@ def main(args):
 
 	test_loader = torch.utils.data.DataLoader(datasets.MNIST('../mnist', train=False, 
 		transform=data_transform), batch_size=args.batch_size, shuffle=True, **data_kwargs)
+
+	# checking if results dir exists
+	if not os.path.exists('results/'):
+		os.makedirs('results/', exist_ok=True)
 
 	for ep in range(args.epochs):
 		# Training
@@ -117,13 +120,20 @@ def main(args):
 				pred, mu, sigma = model(data)
 				tloss = vae_loss(pred, data, mu, sigma, beta=args.beta)
 				test_loss.append(tloss.item())
-				if i == 0:
-					n = 4
+				if batch_idx == 0:
+					n = 8
 					comparison = torch.cat([data[:n], 
 						pred.view(args.batch_size, 1, 84, 84)[:n]])
 					save_image(comparison.cpu(), 'results/reconstruction_' + str(ep) + '.png', nrow=n)
 
 		print('====> Epoch: {} TrainLoss: {:.4f}  TestLoss: {:.4f}'.format(ep, np.mean(train_loss), np.mean(test_loss)))
+
+		# Decoding random samples
+		with torch.no_grad():
+			z_sample = torch.randn(args.batch_size, args.hidden).to(device)
+	        pred_sample = model.decode(z_sample).cpu()
+	        save_image(pred_sample.view(args.batch_size, 1, 84, 84),
+	                   'results/sample_' + str(ep) + '.png')
 
 
 if __name__ == "__main__":

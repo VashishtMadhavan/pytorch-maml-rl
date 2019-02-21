@@ -5,56 +5,28 @@ import torch
 import time
 import json
 from maml_rl.lstm_learner import LSTMLearner
-
-def hdfs_save(hdfs_dir, filename):
-    os.system('/opt/hadoop/latest/bin/hdfs dfs -copyFromLocal -f {} {}'.format(filename, hdfs_dir))
-
-def hdfs_load(hdfs_dir, local_dir):
-    hdfs_expt = '{}/{}'.format(hdfs_dir, local_dir)
-    os.system('/opt/hadoop/latest/bin/hdfs dfs -copyToLocal {} .'.format(hdfs_expt))
-
-def total_rewards(episodes_rewards, aggregation=torch.mean):
-    rewards = torch.mean(torch.stack([aggregation(torch.sum(rewards, dim=0))
-        for rewards in episodes_rewards], dim=0))
-    return rewards.item()
+from maml_rl.utils import gen_utils, torch_utils
 
 def main(args):
     if args.load:
         try:
-            hdfs_load('/ailabs/vash/custom_game/', args.outdir + '/')
+            gen_utils.hdfs_load('/ailabs/vash/custom_game/', args.outdir + '/')
         except:
             print("Cannot find experiment on HDFS, starting from beginning...")
 
-    save_folder = '{0}/saves/'.format(args.outdir)
-    log_file = '{0}/log.txt'.format(args.outdir)
-    hdfs_found = True
-    if not os.path.exists(save_folder):
-        hdfs_found = False
-        os.makedirs(save_folder)
-
-    with open(os.path.join(save_folder, 'config.json'), 'w') as f:
-        config = {k: v for (k, v) in vars(args).items() if k != 'device'}
-        config.update(device=args.device.type)
-        json.dump(config, f, indent=2)
+    logger = gen_utils.Logger(args.outdir)
+    logger.save_config(args)
 
     learner = LSTMLearner(env_name=args.env, batch_size=args.batch_size, ent_coef=args.ent_coef,
         D=args.D, N=args.N, num_workers=args.workers, num_batches=args.train_iters, gamma=args.gamma, use_bn=args.use_bn,
         cnn_type=args.cnn_type, lr=args.lr, tau=args.tau, vf_coef=args.vf_coef, l2_coef=args.l2_coef, device=args.device, clstm=args.clstm)
 
-    if args.load and hdfs_found:
+    if args.load and logger.hdfs_found:
         # loading last checkpoint
-        save_policy_files = [x for x in glob.glob(save_folder + "*.pt") if 'final' not in x]
-        save_filename = max(save_policy_files, key=lambda x: int(x.split('-')[-1].split('.')[0]))
+        save_filename, batch = logger.load_checkpoint()
         learner.policy.load_state_dict(torch.load(save_filename))
-        batch = int(save_filename.split('-')[-1].split('.')[0])
-
-        # updating log file
-        with open(log_file, 'rb') as f:
-            lines = f.readlines()
-        with open(log_file, 'wb') as f:
-            for line in lines[:batch]:
-                f.write(line)
     else:
+        logger.set_keys(['MeanReward:','Batch:','Tsteps:','TimePerBatch:'])
         batch = 0
 
     """
@@ -71,33 +43,29 @@ def main(args):
             # Regular A2C step
             learner.step(episodes)
         batch_step_time = time.time() - tstart
-
-        # Writing Episode Rewards
-        tot_rew = total_rewards([episodes.rewards])
+        tot_rew = torch_utils.total_rewards([episodes.rewards])
         tsteps = (batch + 1) * args.batch_size * 100
-        print("MeanReward: {0} Batch: {1} Tsteps: {2} TimePerBatch: {3}".format(tot_rew, batch, tsteps, batch_step_time))
 
-        with open(log_file, 'a') as f:
-            print("MeanReward: {0} Batch: {1} Tsteps: {2} TimePerBatch: {3}".format(tot_rew, batch, tsteps, batch_step_time), file=f)
+        # Logging metrics
+        logger.logkv('MeanReward:', tot_rew)
+        logger.logkv('Batch:', batch)
+        logger.logkv('Tsteps:', tsteps)
+        logger.logkv('TimePerBatch:', batch_step_time)
+        logger.print_results()
 
         # Save policy network
         if batch % 50 == 0:
-            with open(os.path.join(save_folder, 'policy-{0}.pt'.format(batch)), 'wb') as f:
-                torch.save(learner.policy.state_dict(), f)
+            logger.save_policy(batch, learner.policy)
         batch += 1
 
-    # Saving the Final Policy
-    with open(os.path.join(save_folder, 'policy-{0}.pt'.format(batch)), 'wb') as f:
-        torch.save(learner.policy.state_dict(), f)
-
+    # Saving the final policy
+    logger.save_policy(batch, learner.policy)
     learner.envs.close()
     if args.hdfs:
-        hdfs_save('/ailabs/vash/custom_game/', args.outdir + '/')
+        gen_utils.hdfs_save('/ailabs/vash/custom_game/', args.outdir + '/')
 
 if __name__ == '__main__':
     import argparse
-    import os
-    import glob
 
     parser = argparse.ArgumentParser(description='Reinforcement learning with LSTMs')
 
@@ -118,12 +86,12 @@ if __name__ == '__main__':
     parser.add_argument('--ent_coef', type=float, default=0.05, help='entropy bonus coeff')
     parser.add_argument('--l2_coef', type=float, default=0., help='L2 regularization coeff')
     parser.add_argument('--use_bn', action='store_true', help='use batch normalizaton')
-    parser.add_argument('--batch-size', type=int, default=240, help='num episodes for gradient est.')
+    parser.add_argument('--batch-size', type=int, default=4, help='num episodes for gradient est.')
     parser.add_argument('--train-iters', type=int, default=5000, help='training iterations')
 
     # Miscellaneous
     parser.add_argument('--outdir', type=str, default='debug')
-    parser.add_argument('--workers', type=int, default=80, help='num workers for traj sampling')
+    parser.add_argument('--workers', type=int, default=4, help='num workers for traj sampling')
     args = parser.parse_args()
 
     # Device
