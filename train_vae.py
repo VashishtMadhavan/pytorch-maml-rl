@@ -5,7 +5,6 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torchvision import datasets, transforms
 from torchvision.utils import save_image
 
 import time
@@ -75,26 +74,28 @@ def vae_loss(x_pred, x, mu, sigma, beta=1.0):
 	kl_div = -0.5 * torch.sum(1 + sigma - mu.pow(2) - sigma.exp())
 	return bce + beta * kl_div
 
+def collect_random_episodes(env, eps=10):
+	ep_obs = []
+	for t in range(eps):
+		done = False; obs = env.reset()
+		while not done:
+			obs, rew, done, info = env.step(env.action_space.sample())
+			ep_obs.append(obs)
+	return np.array(ep_obs)
+
 def main(args):
 	env = gym.make('CustomGame-v0')
 	obs_shape = env.observation_space.shape
 	device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-	data_kwargs = {'num_workers': 4, 'pin_memory': True} if torch.cuda.is_available() else {}
 
-	model = BetaVAE(input_size=1, hidden_size=args.hidden).to(device)
+	model = BetaVAE(input_size=obs_shape[-1], hidden_size=args.hidden).to(device)
 	optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 
 	# Dataset Loading
-	# TOOD: replace with GYM data that was collected....
-	data_transform = transforms.Compose([
-		transforms.Resize((84, 84)), 
-		transforms.ToTensor()])
-
-	train_loader = torch.utils.data.DataLoader(datasets.MNIST('../mnist', train=True, download=True,
-		transform=data_transform), batch_size=args.batch_size, shuffle=True, **data_kwargs)
-
-	test_loader = torch.utils.data.DataLoader(datasets.MNIST('../mnist', train=False, 
-		transform=data_transform), batch_size=args.batch_size, shuffle=True, **data_kwargs)
+	observations = collect_random_episodes(env, eps=100)
+	N = observations.shape[0]
+	np.random.shuffle(observations)
+	trainX, testX = observations[:int(0.8 * N)], observations[int(0.8 * N):]
 
 	# checking if results dir exists
 	if not os.path.exists(args.outdir + '/'):
@@ -103,8 +104,10 @@ def main(args):
 	for ep in range(args.epochs):
 		# Training
 		model.train(); train_loss = []
-		for batch_idx, (data, _) in enumerate(train_loader):
-			data = data.to(device)
+		num_train_batches = len(trainX) // args.batch_size
+		for batch_idx in range(num_train_batches):
+			data = trainX[np.random.choice(np.arange(len(trainX)), size=args.batch_size, replace=False)]
+			data = torch.from_numpy(data).permute(0, 3, 1, 2).to(device)
 			optimizer.zero_grad()
 			pred, mu, sigma = model(data)
 			loss = vae_loss(pred, data, mu, sigma, beta=args.beta)
@@ -114,16 +117,18 @@ def main(args):
 
 		# Testing
 		model.eval(); test_loss = []
+		num_test_batches = len(testX) // args.batch_size
 		with torch.no_grad():
-			for batch_idx, (data, _) in enumerate(test_loader):
-				data = data.to(device)
+			for batch_idx in range(num_test_batches):
+				data = testX[np.random.choice(np.arange(len(testX)), size=args.batch_size, replace=False)]
+				data = torch.from_numpy(data).permute(0, 3, 1, 2).to(device)
 				pred, mu, sigma = model(data)
 				tloss = vae_loss(pred, data, mu, sigma, beta=args.beta)
 				test_loss.append(tloss.item())
 				if batch_idx == 0:
 					n = 8
 					comparison = torch.cat([data[:n], 
-						pred.view(args.batch_size, 1, 84, 84)[:n]])
+						pred.view(args.batch_size, obs_shape[2], obs_shape[0], obs_shape[1])[:n]])
 					save_image(comparison.cpu(), '{0}/reconstruction_{1}.png'.format(args.outdir, ep), nrow=n)
 
 		print('====> Epoch: {} TrainLoss: {:.4f}  TestLoss: {:.4f}'.format(ep, np.mean(train_loss), np.mean(test_loss)))
@@ -132,7 +137,7 @@ def main(args):
 		with torch.no_grad():
 			z_sample = torch.randn(32, args.hidden).to(device)
 			pred_sample = model.decode(z_sample).cpu()
-			save_image(pred_sample.view(32, 1, 84, 84), '{0}/sample_{1}.png'.format(args.outdir, ep))
+			save_image(pred_sample.view(32, obs_shape[2], obs_shape[0], obs_shape[1]), '{0}/sample_{1}.png'.format(args.outdir, ep))
 
 
 if __name__ == "__main__":
