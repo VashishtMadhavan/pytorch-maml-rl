@@ -97,8 +97,8 @@ def main(args):
 		transform=data_transform), batch_size=args.batch_size, shuffle=True, **data_kwargs)
 
 	# checking if results dir exists
-	if not os.path.exists('results/'):
-		os.makedirs('results/', exist_ok=True)
+	if not os.path.exists(args.outdir + '/'):
+		os.makedirs(args.outdir + '/', exist_ok=True)
 
 	for ep in range(args.epochs):
 		# Training
@@ -124,21 +124,21 @@ def main(args):
 					n = 8
 					comparison = torch.cat([data[:n], 
 						pred.view(args.batch_size, 1, 84, 84)[:n]])
-					save_image(comparison.cpu(), 'results/reconstruction_' + str(ep) + '.png', nrow=n)
+					save_image(comparison.cpu(), '{0}/reconstruction_{1}.png'.format(args.outdir, ep), nrow=n)
 
 		print('====> Epoch: {} TrainLoss: {:.4f}  TestLoss: {:.4f}'.format(ep, np.mean(train_loss), np.mean(test_loss)))
 
 		# Decoding random samples
 		with torch.no_grad():
-			z_sample = torch.randn(args.batch_size, args.hidden).to(device)
-	        pred_sample = model.decode(z_sample).cpu()
-	        save_image(pred_sample.view(args.batch_size, 1, 84, 84),
-	                   'results/sample_' + str(ep) + '.png')
+			z_sample = torch.randn(32, args.hidden).to(device)
+			pred_sample = model.decode(z_sample).cpu()
+			save_image(pred_sample.view(32, 1, 84, 84), '{0}/sample_{1}.png'.format(args.outdir, ep))
 
 
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser()
 	parser.add_argument('--hidden', type=int, default=32, help='hidden size')
+	parser.add_argument('--outdir', type=str, default='results/', help='where to save results')
 	parser.add_argument('--lr', type=float, default=1e-4, help='learning rate')
 	parser.add_argument('--batch_size', type=int, default=64, help='training batch size')
 	parser.add_argument('--epochs', type=int, default=10, help='nmber train epochs')
