@@ -69,8 +69,32 @@ class BetaVAE(nn.Module):
 		z = self.sample_latent(mu, sigma)
 		return self.decode(z), mu, sigma
 
+class RandomEncoder(nn.Module):
+	def __init__(self, input_size):
+		super(RandomEncoder, self).__init__()
+		self.conv1 = nn.Conv2d(input_size, 32, kernel_size=8, stride=4)
+		self.conv2 = nn.Conv2d(32, 64, kernel_size=4, stride=2)
+		self.conv3 = nn.Conv2d(64, 64, kernel_size=3, stride=1)
+		self.fc = nn.Linear(7 * 7 * 64, 256)
+
+	def forward(self, x):
+		out = F.relu(self.conv1(x))
+		out = F.relu(self.conv2(out))
+		out = F.relu(self.conv3(out))
+		out = out.view(out.size(0), -1)
+		return self.fc(out)
+
 def vae_loss(x_pred, x, mu, sigma, beta=1.0):
 	bce = F.binary_cross_entropy(x_pred, x, size_average=False)
+	kl_div = -0.5 * torch.sum(1 + sigma - mu.pow(2) - sigma.exp())
+	return bce + beta * kl_div
+
+# TODO: figure out if size_average should be false or not.
+def vae_proj_loss(encoder, x_pred, x, mu, sigma, beta=1.0):
+	with torch.no_grad():
+		x_pred_proj = encoder(x_pred)
+		x_proj = encoder(x)
+	bce = F.mse_loss(x_pred_proj, x_proj, size_average=False)
 	kl_div = -0.5 * torch.sum(1 + sigma - mu.pow(2) - sigma.exp())
 	return bce + beta * kl_div
 
@@ -89,6 +113,7 @@ def main(args):
 	device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 	model = BetaVAE(input_size=obs_shape[-1], hidden_size=args.hidden).to(device)
+	enc = RandomEncoder(input_size=obs_shape[-1]).to(device)
 	optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 
 	# Dataset Loading
@@ -110,7 +135,10 @@ def main(args):
 			data = torch.from_numpy(data).permute(0, 3, 1, 2).to(device)
 			optimizer.zero_grad()
 			pred, mu, sigma = model(data)
-			loss = vae_loss(pred, data, mu, sigma, beta=args.beta)
+			if args.enc:
+				loss = vae_proj_loss(enc, pred, data, mu, sigma, beta=args.beta)
+			else:
+				loss = vae_loss(pred, data, mu, sigma, beta=args.beta)
 			loss.backward()
 			train_loss.append(loss.item())
 			optimizer.step()
@@ -123,7 +151,10 @@ def main(args):
 				data = testX[np.random.choice(np.arange(len(testX)), size=args.batch_size, replace=False)]
 				data = torch.from_numpy(data).permute(0, 3, 1, 2).to(device)
 				pred, mu, sigma = model(data)
-				tloss = vae_loss(pred, data, mu, sigma, beta=args.beta)
+				if args.enc:
+					tloss = vae_proj_loss(enc, pred, data, mu, sigma, beta=args.beta)
+				else:
+					tloss = vae_loss(pred, data, mu, sigma, beta=args.beta)
 				test_loss.append(tloss.item())
 				if batch_idx == 0:
 					n = 8
@@ -143,9 +174,10 @@ def main(args):
 
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser()
+	parser.add_argument('--enc', action='store_true', help='to use random projections or not')
 	parser.add_argument('--hidden', type=int, default=32, help='hidden size')
 	parser.add_argument('--outdir', type=str, default='results/', help='where to save results')
-	parser.add_argument('--lr', type=float, default=1e-4, help='learning rate')
+	parser.add_argument('--lr', type=float, default=1e-3, help='learning rate')
 	parser.add_argument('--batch_size', type=int, default=64, help='training batch size')
 	parser.add_argument('--epochs', type=int, default=10, help='nmber train epochs')
 	parser.add_argument('--beta', type=float, default=1.0, help='beta for disentagled representations')
