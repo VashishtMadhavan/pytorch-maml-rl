@@ -47,10 +47,12 @@ class LSTMLearner(object):
         self.num_actions = self.envs.action_space.n
         if not self.use_clstm:
             self.lstm_size = 256
-            self.policy = ConvLSTMPolicy(input_size=self.obs_shape, output_size=self.num_actions, use_bn=use_bn, cnn_type=cnn_type, D=self.D, N=self.N)
+            self.policy = ConvLSTMPolicy(input_size=self.obs_shape, output_size=self.num_actions,
+                use_bn=use_bn, cnn_type=cnn_type, D=self.D, N=self.N, device=self.device)
         else:
             self.lstm_size = 32
-            self.policy = ConvCLSTMPolicy(input_size=self.obs_shape, output_size=self.num_actions, use_bn=use_bn, D=self.D, N=self.N)
+            self.policy = ConvCLSTMPolicy(input_size=self.obs_shape, output_size=self.num_actions,
+                use_bn=use_bn, D=self.D, N=self.N, device=self.device)
 
         # Optimization Variables
         self.lr = lr
