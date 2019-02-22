@@ -33,6 +33,7 @@ class ConvLSTMPolicy(nn.Module):
         self.cell_list = [nn.LSTMCell(lstm_input_size, hidden_size=256)]
         for d in range(1, self.D):
             self.cell_list.append(nn.LSTMCell(256, hidden_size=256))
+        self.cell_list = nn.ModuleList(self.cell_list)
         self.pi = nn.Linear(256, self.output_size)
         self.v = nn.Linear(256, 1)
 
@@ -52,8 +53,6 @@ class ConvLSTMPolicy(nn.Module):
                 else:
                     h, c = self.cell_list[d](output[n], (h, c))
                 inner_out.append(h)
-            output = torch.stack(inner_out).float().to(device=self.device)
+            output = torch.stack(inner_out)
             h_out.append(h); c_out.append(c)
-        h_out = torch.stack(h_out).float().to(device=self.device)
-        c_out = torch.stack(c_out).float().to(device=self.device)
-        return Categorical(logits=self.pi(h)), self.v(h), h_out, c_out
+        return Categorical(logits=self.pi(h)), self.v(h), torch.stack(h_out), torch.stack(c_out)
