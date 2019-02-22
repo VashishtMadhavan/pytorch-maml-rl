@@ -27,8 +27,10 @@ class ConvLSTMPolicy(nn.Module):
             self.encoder = ImpalaCnn(input_size=input_size, use_bn=use_bn)
             hidden_size = 256
 
-        input_size = hidden_size + self.output_size + 2
-        self.lstm = nn.LSTM(input_size=input_size, hidden_size=256, num_layers=self.D)
+        lstm_input_size = hidden_size + self.output_size + 2
+        self.cell_list = [nn.LSTMCell(lstm_input_size, hidden_size=256)]
+        for d in range(1, self.D):
+            self.cell_list.append(nn.LSTMCell(256, hidden_size=256))
         self.pi = nn.Linear(256, self.output_size)
         self.v = nn.Linear(256, 1)
 
@@ -37,7 +39,17 @@ class ConvLSTMPolicy(nn.Module):
         output = self.encoder(x)
         # passing joint state + action embedding thru LSTM
         output = torch.cat((output, embed), dim=1)
-        output = output.unsqueeze(0).repeat(self.N, 1, 1)
         # stacked LSTM
-        output, (h_out, c_out) = self.lstm(output, (hx, cx))
-        return Categorical(logits=self.pi(output[-1])), self.v(output[-1]), h_out, c_out
+        h_out = []; c_out = []
+        for d in range(self.D):
+            h, c = hx[d], cx[d]
+            inner_out = []
+            for n in range(self.N):
+                if d == 0:
+                    h, c = self.cell_list[d](output, (h, c))
+                else:
+                    h, c = self.cell_list[d](output[n], (h, c))
+                inner_out.append(h)
+            output = torch.stack(inner_out)
+            h_out.append(h); c_out.append(c)
+        return Categorical(logits=self.pi(h)), self.v(h), torch.stack(h_out), torch.stack(c_out)
