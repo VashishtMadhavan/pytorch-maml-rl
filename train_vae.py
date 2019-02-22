@@ -91,9 +91,8 @@ def vae_loss(x_pred, x, mu, sigma, beta=1.0):
 
 # TODO: figure out if size_average should be false or not.
 def vae_proj_loss(encoder, x_pred, x, mu, sigma, beta=1.0):
-	with torch.no_grad():
-		x_pred_proj = encoder(x_pred)
-		x_proj = encoder(x)
+	x_pred_proj = encoder(x_pred)
+	x_proj = encoder(x)
 	bce = F.mse_loss(x_pred_proj, x_proj, size_average=False)
 	kl_div = -0.5 * torch.sum(1 + sigma - mu.pow(2) - sigma.exp())
 	return bce + beta * kl_div
@@ -114,6 +113,8 @@ def main(args):
 
 	model = BetaVAE(input_size=obs_shape[-1], hidden_size=args.hidden).to(device)
 	enc = RandomEncoder(input_size=obs_shape[-1]).to(device)
+	for e_param in enc.parameters():
+		e_param.requires_grad = False
 	optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 
 	# Dataset Loading
@@ -130,6 +131,7 @@ def main(args):
 		# Training
 		model.train(); train_loss = []
 		num_train_batches = len(trainX) // args.batch_size
+		be_param = [e for e in enc.parameters()][0].data
 		for batch_idx in range(num_train_batches):
 			data = trainX[np.random.choice(np.arange(len(trainX)), size=args.batch_size, replace=False)]
 			data = torch.from_numpy(data).permute(0, 3, 1, 2).to(device)
@@ -142,6 +144,8 @@ def main(args):
 			loss.backward()
 			train_loss.append(loss.item())
 			optimizer.step()
+		ae_param = [e for e in enc.parameters()][0].data
+		import pdb; pdb.set_trace()
 
 		# Testing
 		model.eval(); test_loss = []
