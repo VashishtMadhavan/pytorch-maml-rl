@@ -69,31 +69,14 @@ class BetaVAE(nn.Module):
 		z = self.sample_latent(mu, sigma)
 		return self.decode(z), mu, sigma
 
-class RandomEncoder(nn.Module):
-	def __init__(self, input_size):
-		super(RandomEncoder, self).__init__()
-		self.conv1 = nn.Conv2d(input_size, 32, kernel_size=8, stride=4)
-		self.conv2 = nn.Conv2d(32, 64, kernel_size=4, stride=2)
-		self.conv3 = nn.Conv2d(64, 64, kernel_size=3, stride=1)
-		self.fc = nn.Linear(7 * 7 * 64, 256)
-
-	def forward(self, x):
-		out = F.relu(self.conv1(x))
-		out = F.relu(self.conv2(out))
-		out = F.relu(self.conv3(out))
-		out = out.view(out.size(0), -1)
-		return self.fc(out)
-
 def vae_loss(x_pred, x, mu, sigma, beta=1.0):
 	bce = F.binary_cross_entropy(x_pred, x, size_average=False)
 	kl_div = -0.5 * torch.sum(1 + sigma - mu.pow(2) - sigma.exp())
 	return bce + beta * kl_div
 
-# TODO: figure out if size_average should be false or not.
-def vae_proj_loss(encoder, x_pred, x, mu, sigma, beta=1.0):
-	x_pred_proj = encoder(x_pred)
-	x_proj = encoder(x)
-	bce = F.mse_loss(x_pred_proj, x_proj, size_average=False)
+def vae_proj_loss(model, x_pred, x, mu, sigma, beta=1.0):
+	# Replace with loss from trained autencoder...
+	bce = None
 	kl_div = -0.5 * torch.sum(1 + sigma - mu.pow(2) - sigma.exp())
 	return bce + beta * kl_div
 
@@ -112,9 +95,6 @@ def main(args):
 	device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 	model = BetaVAE(input_size=obs_shape[-1], hidden_size=args.hidden).to(device)
-	enc = RandomEncoder(input_size=obs_shape[-1]).to(device)
-	for e_param in enc.parameters():
-		e_param.requires_grad = False
 	optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 
 	# Dataset Loading
@@ -131,21 +111,18 @@ def main(args):
 		# Training
 		model.train(); train_loss = []
 		num_train_batches = len(trainX) // args.batch_size
-		be_param = [e for e in enc.parameters()][0].data
 		for batch_idx in range(num_train_batches):
 			data = trainX[np.random.choice(np.arange(len(trainX)), size=args.batch_size, replace=False)]
 			data = torch.from_numpy(data).permute(0, 3, 1, 2).to(device)
 			optimizer.zero_grad()
 			pred, mu, sigma = model(data)
 			if args.enc:
-				loss = vae_proj_loss(enc, pred, data, mu, sigma, beta=args.beta)
+				loss = vae_proj_loss(model, pred, data, mu, sigma, beta=args.beta)
 			else:
 				loss = vae_loss(pred, data, mu, sigma, beta=args.beta)
 			loss.backward()
 			train_loss.append(loss.item())
 			optimizer.step()
-		ae_param = [e for e in enc.parameters()][0].data
-		import pdb; pdb.set_trace()
 
 		# Testing
 		model.eval(); test_loss = []
@@ -156,7 +133,7 @@ def main(args):
 				data = torch.from_numpy(data).permute(0, 3, 1, 2).to(device)
 				pred, mu, sigma = model(data)
 				if args.enc:
-					tloss = vae_proj_loss(enc, pred, data, mu, sigma, beta=args.beta)
+					tloss = vae_proj_loss(model, pred, data, mu, sigma, beta=args.beta)
 				else:
 					tloss = vae_loss(pred, data, mu, sigma, beta=args.beta)
 				test_loss.append(tloss.item())
