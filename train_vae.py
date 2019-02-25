@@ -69,66 +69,10 @@ class BetaVAE(nn.Module):
 		z = self.sample_latent(mu, sigma)
 		return self.decode(z), mu, sigma
 
-class ConvAE(nn.Module):
-	def __init__(self, input_size, hidden_size=32):
-		super(ConvAE, self).__init__()
-		self.input_size = input_size
-		self.hidden_size = hidden_size
-
-		self.encoder = nn.Sequential(
-			nn.Conv2d(input_size, 32, kernel_size=4, stride=2),
-			nn.ReLU(inplace=True),
-			nn.Conv2d(32, 64, kernel_size=4, stride=2),
-			nn.ReLU(inplace=True),
-			nn.Conv2d(64, 128, kernel_size=4, stride=2),
-			nn.ReLU(inplace=True),
-			nn.Conv2d(128, 256, kernel_size=4, stride=2),
-			nn.ReLU(inplace=True),
-		)
-
-		self.encode_fc = nn.Linear(2304, self.hidden_size)
-		self.decode_fc = nn.Linear(self.hidden_size, 1024)
-
-		self.decoder = nn.Sequential(
-			nn.ConvTranspose2d(1024, 128, kernel_size=6, stride=2),
-			nn.ReLU(inplace=True),
-			nn.ConvTranspose2d(128, 64, kernel_size=7, stride=2),
-			nn.ReLU(inplace=True),
-			nn.ConvTranspose2d(64, 32, kernel_size=7, stride=2),
-			nn.ReLU(inplace=True),
-			nn.ConvTranspose2d(32, input_size, kernel_size=8, stride=2),
-			nn.Sigmoid(),
-		)
-
-	def encode(self, x):
-		h = self.encoder(x)
-		h = h.view(h.size(0), -1)
-		return self.encode_fc(h)
-
-	def decode(self, z):
-		h = self.decode_fc(z)
-		h = h.unsqueeze(-1).unsqueeze(-1)
-		return self.decoder(h)
-
-	def forward(self, x):
-		z = self.encode(x)
-		return self.decode(z)
-
 def vae_loss(x_pred, x, mu, sigma, beta=1.0):
 	bce = F.binary_cross_entropy(x_pred, x, size_average=False)
 	kl_div = -0.5 * torch.sum(1 + sigma - mu.pow(2) - sigma.exp())
 	return bce + beta * kl_div
-
-def vae_proj_loss(model, x_pred, x, mu, sigma, beta=1.0):
-	z_pred = model.encode(x_pred)
-	z = model.encode(x)
-	bce = F.mse_loss(z_pred, z, size_average=False)
-	kl_div = -0.5 * torch.sum(1 + sigma - mu.pow(2) - sigma.exp())
-	return bce + beta * kl_div
-
-def ae_loss(x_pred, x):
-	bce = F.binary_cross_entropy(x_pred, x, size_average=False)
-	return bce
 
 def collect_random_episodes(env, eps=10):
 	ep_obs = []
@@ -147,33 +91,11 @@ def main(args):
 	model = BetaVAE(input_size=obs_shape[-1], hidden_size=args.hidden).to(device)
 	optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 
-	proj_model = ConvAE(input_size=obs_shape[-1], hidden_size=args.hidden).to(device)
-	proj_optim = torch.optim.Adam(proj_model.parameters(), lr=args.lr, weight_decay=1e-4)
-
 	# Dataset Loading
 	observations = collect_random_episodes(env, eps=100)
 	N = observations.shape[0]
 	np.random.shuffle(observations)
 	trainX, testX = observations[:int(0.8 * N)], observations[int(0.8 * N):]
-
-	# Pretrain Autencoder
-	if not os.path.exists('pretrained.pt'):
-		for p_ep in range(50):
-			p_train_batches = len(trainX) // args.batch_size
-			for idx in tqdm(range(p_train_batches)):
-				data = trainX[np.random.choice(np.arange(len(trainX)), size=args.batch_size, replace=False)]
-				data = torch.from_numpy(data).permute(0, 3, 1, 2).to(device)
-				proj_optim.zero_grad()
-				pred = proj_model(data)
-				loss = ae_loss(pred, data)
-				loss.backward()
-				proj_optim.step()
-		with open('pretrained.pt', 'wb') as f:
-			torch.save(proj_model.state_dict(), f)
-	else:
-		proj_model.load_state_dict(torch.load('pretrained.pt'))
-	for pp in proj_model.parameters():
-		pp.requires_grad = False
 
 	# checking if results dir exists
 	if not os.path.exists(args.outdir + '/'):
@@ -188,10 +110,7 @@ def main(args):
 			data = torch.from_numpy(data).permute(0, 3, 1, 2).to(device)
 			optimizer.zero_grad()
 			pred, mu, sigma = model(data)
-			if args.enc:
-				loss = vae_proj_loss(proj_model, pred, data, mu, sigma, beta=args.beta)
-			else:
-				loss = vae_loss(pred, data, mu, sigma, beta=args.beta)
+			loss = vae_loss(pred, data, mu, sigma, beta=args.beta)
 			loss.backward()
 			train_loss.append(loss.item())
 			optimizer.step()
@@ -204,10 +123,7 @@ def main(args):
 				data = testX[np.random.choice(np.arange(len(testX)), size=args.batch_size, replace=False)]
 				data = torch.from_numpy(data).permute(0, 3, 1, 2).to(device)
 				pred, mu, sigma = model(data)
-				if args.enc:
-					tloss = vae_proj_loss(proj_model, pred, data, mu, sigma, beta=args.beta)
-				else:
-					tloss = vae_loss(pred, data, mu, sigma, beta=args.beta)
+				tloss = vae_loss(pred, data, mu, sigma, beta=args.beta)
 				test_loss.append(tloss.item())
 				if batch_idx == 0:
 					n = 8
@@ -223,6 +139,9 @@ def main(args):
 			z_sample = torch.randn(32, args.hidden).to(device)
 			pred_sample = model.decode(z_sample).cpu()
 			save_image(pred_sample.view(32, obs_shape[2], obs_shape[0], obs_shape[1])[:, :1, :, :], '{0}/sample_{1}.png'.format(args.outdir, ep))
+
+	with open(os.path.join(args.outdir, 'final.pt'), 'wb') as f:
+		torch.save(model.state_dict(), f)
 
 
 if __name__ == "__main__":
