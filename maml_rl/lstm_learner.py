@@ -7,8 +7,7 @@ import multiprocessing as mp
 
 from maml_rl.envs.subproc_vec_env import SubprocVecEnv
 from maml_rl.episode import LSTMBatchEpisodes
-from maml_rl.policies import ConvLSTMPolicy, ConvCLSTMPolicy, LSTMPolicy
-from train_vae import BetaVAE
+from maml_rl.policies import ConvLSTMPolicy, ConvCLSTMPolicy
 
 def make_env(env_name):
     def _make_env():
@@ -57,21 +56,11 @@ class LSTMLearner(object):
             self.policy = ConvCLSTMPolicy(input_size=self.obs_shape, output_size=self.num_actions,
                 use_bn=use_bn, D=self.D, N=self.N)
 
-        if self.latent:
-            encoder = BetaVAE(input_size=self.obs_shape[-1], hidden_size=64)
-            if self.device.type == 'cpu':
-                encoder.load_state_dict(torch.load(self.latent, map_location=self.device.type))
-            else:
-                encoder.load_state_dict(torch.load(self.latent))
-            for encp in encoder.parameters():
-                encp.requires_grad = False
-            self.policy = LSTMPolicy(input_size=64, enc_model=encoder, output_size=self.num_actions, device=self.device)
-
         # Optimization Variables
         self.lr = lr
         self.tau = tau
         self.clip_frac = clip_frac
-        self.optimizer = optim.Adam(filter(lambda p: p.requires_grad, self.policy.parameters()), lr=self.lr, eps=1e-5, weight_decay=l2_coef)
+        self.optimizer = optim.Adam(self.policy.parameters(), lr=self.lr, eps=1e-5, weight_decay=l2_coef)
 
         # PPO variables
         self.surrogate_epochs = surr_epochs
