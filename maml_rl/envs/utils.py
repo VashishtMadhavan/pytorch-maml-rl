@@ -11,6 +11,7 @@ def mujoco_wrapper(entry_point, **kwargs):
     return env
 
 
+# TODO: potentially keep RGB and remove framestack
 def universe_wrapper(entry_point, **kwargs):
 	# Load the environment from its entry point
     env_cls = load(entry_point)

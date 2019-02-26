@@ -57,6 +57,7 @@ class CustomGameEnv(gym.Env):
         return image_rotated
 
     def step(self, action):
+        # TODO: potentially multiply reward by 10.0
         reward = self.game_state.act(self._action_set[action])
         state = self._get_image()
         terminal = self.game_state.game_over()

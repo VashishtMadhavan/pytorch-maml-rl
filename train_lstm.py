@@ -84,7 +84,7 @@ if __name__ == '__main__':
     parser.add_argument('--ent_coef', type=float, default=0.05, help='entropy bonus coeff')
     parser.add_argument('--l2_coef', type=float, default=0., help='L2 regularization coeff')
     parser.add_argument('--use_bn', action='store_true', help='use batch normalizaton')
-    parser.add_argument('--batch-size', type=int, default=240, help='num episodes for gradient est.')
+    parser.add_argument('--batch-size', type=int, default=100, help='num episodes for gradient est.')
     parser.add_argument('--train-iters', type=int, default=5000, help='training iterations')
 
     # Miscellaneous

@@ -25,11 +25,10 @@ class LSTMLearner(object):
     """
     def __init__(self, env_name, batch_size, num_workers, num_batches=1000, D=1, N=1, latent=None,
                 gamma=0.95, lr=0.01, tau=1.0, ent_coef=.01, vf_coef=0.5, lstm_size=256, clip_frac=0.2, device='cpu',
-                surr_epochs=4, clstm=False, surr_batches=4, l2_coef=0., use_bn=False, max_grad_norm=0.5, cnn_type='nature'):
+                surr_epochs=3, clstm=False, surr_batches=4, l2_coef=0., use_bn=False, max_grad_norm=0.5, cnn_type='nature'):
         self.vf_coef = vf_coef
         self.ent_coef = ent_coef
         self.gamma = gamma
-        self.device = device
         self.use_clstm = clstm
         self.latent = latent
         self.D = D
