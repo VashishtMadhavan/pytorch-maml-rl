@@ -1,5 +1,5 @@
 from gym.envs.registration import load
-from .wrappers import WarpFrame, ScaledFloatFrame, MaxAndSkipEnv, ClipRewardEnv, FrameStack
+from .wrappers import WarpFrame, ScaledFloatFrame, MaxAndSkipEnv, FrameStack
 from .normalized_env import NormalizedActionWrapper
 
 def mujoco_wrapper(entry_point, **kwargs):
@@ -10,8 +10,6 @@ def mujoco_wrapper(entry_point, **kwargs):
     env = NormalizedActionWrapper(env)
     return env
 
-
-# TODO: potentially keep RGB and remove framestack
 def universe_wrapper(entry_point, **kwargs):
 	# Load the environment from its entry point
     env_cls = load(entry_point)
@@ -19,8 +17,8 @@ def universe_wrapper(entry_point, **kwargs):
 
     # Preprocessing wrappers
     env = MaxAndSkipEnv(env, skip=4)
-    env = WarpFrame(env)
+    #env = WarpFrame(env, dim=84, rgb=False)
+    env = WarpFrame(env, dim=84, rgb=True)
     env = ScaledFloatFrame(env)
-    env = ClipRewardEnv(env)
-    env = FrameStack(env, 2)
+    #env = FrameStack(env, 2)
     return env
