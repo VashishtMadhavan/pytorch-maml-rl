@@ -23,6 +23,7 @@ class CustomGameEnv(gym.Env):
 
         self.num_actions = len(self._action_set)
         self.viewer = None
+        self.reward_mult = 10.0
 
     def seed(self, seed=None):
         if not seed:
@@ -57,8 +58,7 @@ class CustomGameEnv(gym.Env):
         return image_rotated
 
     def step(self, action):
-        # TODO: potentially multiply reward by 10.0
-        reward = self.game_state.act(self._action_set[action])
+        reward = self.reward_mult * self.game_state.act(self._action_set[action])
         state = self._get_image()
         terminal = self.game_state.game_over()
         return state, reward, terminal, {}
