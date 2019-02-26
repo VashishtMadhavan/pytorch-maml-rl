@@ -7,7 +7,8 @@ import multiprocessing as mp
 
 from maml_rl.envs.subproc_vec_env import SubprocVecEnv
 from maml_rl.episode import LSTMBatchEpisodes
-from maml_rl.policies import ConvLSTMPolicy, ConvCLSTMPolicy
+from maml_rl.policies import ConvLSTMPolicy, ConvCLSTMPolicy, LSTMPolicy
+from train_vae import BetaVAE
 
 def make_env(env_name):
     def _make_env():
@@ -23,7 +24,7 @@ class LSTMLearner(object):
     """
     LSTM Learner using A2C/PPO
     """
-    def __init__(self, env_name, batch_size, num_workers, num_batches=1000, D=1, N=1,
+    def __init__(self, env_name, batch_size, num_workers, num_batches=1000, D=1, N=1, latent=None,
                 gamma=0.95, lr=0.01, tau=1.0, ent_coef=.01, vf_coef=0.5, lstm_size=256, clip_frac=0.2, device='cpu',
                 surr_epochs=4, clstm=False, surr_batches=4, l2_coef=0., use_bn=False, max_grad_norm=0.5, cnn_type='nature'):
         self.vf_coef = vf_coef
@@ -31,6 +32,7 @@ class LSTMLearner(object):
         self.gamma = gamma
         self.device = device
         self.use_clstm = clstm
+        self.latent = latent
         self.D = D
         self.N = N
 
@@ -45,6 +47,7 @@ class LSTMLearner(object):
         self._env = gym.make(env_name)
         self.obs_shape = self.envs.observation_space.shape
         self.num_actions = self.envs.action_space.n
+
         if not self.use_clstm:
             self.lstm_size = 256
             self.policy = ConvLSTMPolicy(input_size=self.obs_shape, output_size=self.num_actions,
@@ -54,11 +57,21 @@ class LSTMLearner(object):
             self.policy = ConvCLSTMPolicy(input_size=self.obs_shape, output_size=self.num_actions,
                 use_bn=use_bn, D=self.D, N=self.N, device=self.device)
 
+        if self.latent:
+            encoder = BetaVAE(input_size=self.obs_shape[-1], hidden_size=64)
+            if self.device.type == 'cpu':
+                encoder.load_state_dict(torch.load(self.latent, map_location=self.device.type))
+            else:
+                encoder.load_state_dict(torch.load(self.latent))
+            for encp in encoder.parameters():
+                encp.requires_grad = False
+            self.policy = LSTMPolicy(input_size=64, enc_model=encoder, output_size=self.num_actions, device=self.device)
+
         # Optimization Variables
         self.lr = lr
         self.tau = tau
         self.clip_frac = clip_frac
-        self.optimizer = optim.Adam(self.policy.parameters(), lr=self.lr, eps=1e-5, weight_decay=l2_coef)
+        self.optimizer = optim.Adam(filter(lambda p: p.requires_grad, self.policy.parameters()), lr=self.lr, eps=1e-5, weight_decay=l2_coef)
 
         # PPO variables
         self.surrogate_epochs = surr_epochs
