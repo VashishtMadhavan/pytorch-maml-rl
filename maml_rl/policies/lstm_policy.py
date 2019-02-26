@@ -20,6 +20,7 @@ class LSTMPolicy(nn.Module):
 
         lstm_input_size = self.input_size + self.output_size + 2
         self.cell_list = [nn.LSTMCell(lstm_input_size, hidden_size=256)]
+        self.cell_list = nn.ModuleList(self.cell_list)
         self.pi = nn.Linear(256, self.output_size)
         self.v = nn.Linear(256, 1)
 
