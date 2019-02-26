@@ -12,7 +12,7 @@ class ConvLSTMPolicy(nn.Module):
     Baseline LSTM Architecture
     """
     def __init__(self, input_size, output_size, use_bn=False,
-                cnn_type='nature', D=1, N=1, device=torch.device('cuda')):
+                cnn_type='nature', D=1, N=1):
         super(ConvLSTMPolicy, self).__init__()
         self.input_size = input_size
         self.output_size = output_size
@@ -20,7 +20,6 @@ class ConvLSTMPolicy(nn.Module):
         self.cnn_type = cnn_type
         self.D = D
         self.N = N
-        self.device = device
 
         if self.cnn_type == 'nature':
             self.encoder = NatureCnn(input_size=input_size, use_bn=use_bn)
@@ -45,14 +44,7 @@ class ConvLSTMPolicy(nn.Module):
         # stacked LSTM
         h_out = []; c_out = []
         for d in range(self.D):
-            h, c = hx[d], cx[d]
-            inner_out = []
-            for n in range(self.N):
-                if d == 0:
-                    h, c = self.cell_list[d](output, (h, c))
-                else:
-                    h, c = self.cell_list[d](output[n], (h, c))
-                inner_out.append(h)
-            output = torch.stack(inner_out)
+            h, c = self.cell_list[d](output, (hx[d], cx[d]))
+            output = h
             h_out.append(h); c_out.append(c)
-        return Categorical(logits=self.pi(h)), self.v(h), torch.stack(h_out), torch.stack(c_out)
+        return Categorical(logits=self.pi(output)), self.v(output), torch.stack(h_out), torch.stack(c_out)

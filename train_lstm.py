@@ -21,18 +21,15 @@ def main(args):
         D=args.D, N=args.N, num_workers=args.workers, num_batches=args.train_iters, gamma=args.gamma, use_bn=args.use_bn,
         cnn_type=args.cnn_type, lr=args.lr, tau=args.tau, vf_coef=args.vf_coef, l2_coef=args.l2_coef, device=args.device, clstm=args.clstm)
 
+    # Loading last checkpoint
     if args.load and logger.hdfs_found:
-        # loading last checkpoint
         save_filename, batch = logger.load_checkpoint()
         learner.policy.load_state_dict(torch.load(save_filename))
     else:
         logger.set_keys(['MeanReward:','Batch:','Tsteps:','TimePerBatch:'])
         batch = 0
 
-    """
-    Training Loop
-    """
-
+    # Training Loop
     while batch < args.train_iters:
         tstart = time.time()
         episodes = learner.sample()
