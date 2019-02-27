@@ -17,8 +17,6 @@ def universe_wrapper(entry_point, **kwargs):
 
     # Preprocessing wrappers
     env = MaxAndSkipEnv(env, skip=4)
-    #env = WarpFrame(env, dim=84, rgb=False)
     env = WarpFrame(env, dim=84, rgb=True)
     env = ScaledFloatFrame(env)
-    #env = FrameStack(env, 2)
     return env

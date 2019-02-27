@@ -27,74 +27,60 @@ def parse_args():
     parser.add_argument("--save", action="store_true")
     return parser.parse_args()
 
-
 def load_params(policy_path, env, device, clstm=False, cnn_type='nature', D=1, N=1):
+    obs_shape = env.observation_space.shape
+    a_dim = env.action_space.n
     if not clstm:
-        policy = ConvLSTMPolicy(
-            input_size=env.observation_space.shape,
-            output_size=env.action_space.n,
-            cnn_type=cnn_type, D=D, N=N)
+        policy = ConvLSTMPolicy(obs_shape, a_dim, cnn_type=cnn_type, D=D, N=N)
     else:
-        policy = ConvCLSTMPolicy(
-            input_size=env.observation_space.shape,
-            output_size=env.action_space.n, D=D, N=N)
-    if device == 'cpu':
-        policy.load_state_dict(torch.load(policy_path, map_location=device))
-    else:
-        policy.load_state_dict(torch.load(policy_path))
+        policy = ConvCLSTMPolicy(obs_shape, a_dim, D=D, N=N)
+    policy.load_state_dict(torch.load(policy_path, map_location=device if device == 'cpu' else None))
     return policy
-
 
 def evaluate(env, policy, device, test_eps=10, greedy=False, render=False, random=False, 
             record=False, clstm=False, D=1):
-    num_actions = env.action_space.n; total_frames = []
-    ep_rews = []; ep_steps = []; second_ep_rews = []
+    nA = env.action_space.n; frames = []
+    epR = []; epT = []; sepR = []
     for t in tqdm(range(test_eps)):
         obs = env.reset(); done = False
-        embed_tensor = torch.zeros(1, num_actions + 2).to(device=device)
-        embed_tensor[:, 0] = 1.
+        e_tensor = torch.zeros(1, nA + 2).to(device=device)
+        e_tensor[:, 0] = 1.
         if not clstm:
             hx = torch.zeros(policy.D, 1, 256).to(device=device)
             cx = torch.zeros(policy.D, 1, 256).to(device=device)
         else:
             hx = torch.zeros(policy.D, 1, 32, 7, 7).to(device=device)
             cx = torch.zeros(policy.D, 1, 32, 7, 7).to(device=device)
-        total_rew = 0; tstep = 0
+        R = 0; T = 0
 
         while not done:
-            total_frames.append(np.array(obs))
-            if render:
-                env.render()
+            frames.append(np.array(obs))
+            if render: env.render()
             obs_tensor = torch.from_numpy(np.array(obs)[None]).to(device=device)
-            action_dist, value_tensor, hx, cx = policy(obs_tensor, hx, cx, embed_tensor)
+            action_dist, value_tensor, hx, cx = policy(obs_tensor, hx, cx, e_tensor)
+
             if greedy:
                 probs = action_dist.probs.detach().cpu().numpy()
-                action = np.argmax(probs, axis=1)
+                action = np.argmax(probs, axis=1)[0]
+            elif random:
+                action = env.action_space.sample()
             else:
-                action = action_dist.sample().cpu().numpy()
-
-            if random:
-                obs, rew, done, info = env.step(env.action_space.sample())
-            else:
-                obs, rew, done, info = env.step(action[0])
+                action = action_dist.sample().cpu().numpy()[0]
+            obs, rew, done, info = env.step(action)
 
             if 'v0' in env.spec.id:
                 term_flag = float(done)
             else:
                 term_flag = np.sign(info['done']) if 'done' in info else 0.0
 
-            embed_arr = np.zeros(num_actions + 2)
-            embed_arr[action[0]] = 1.
-            embed_arr[-2] = rew
-            embed_arr[-1] = term_flag
-            embed_tensor = torch.from_numpy(embed_arr[None]).float().to(device=device)
-            total_rew += rew; tstep += 1
-        second_ep_rews.append(rew)
-        ep_rews.append(total_rew); ep_steps.append(tstep)
+            e = np.zeros(nA + 2); e[action] = 1.; e[-2] = rew; e[-1] = term_flag
+            e_tensor = torch.from_numpy(e[None]).float().to(device=device)
+            R += rew; T += 1
+        sepR.append(rew)
+        epR.append(R); epT.append(T)
     if record:
-        frames = [t[:,:,-1] for t in total_frames]
         imageio.mimsave("movie.gif", frames)
-    return ep_rews, ep_steps, second_ep_rews
+    return epR, epT, sepR
  
 def main():
     args = parse_args()

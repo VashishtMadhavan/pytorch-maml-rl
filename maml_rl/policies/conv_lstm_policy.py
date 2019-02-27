@@ -37,11 +37,8 @@ class ConvLSTMPolicy(nn.Module):
         self.v = nn.Linear(256, 1)
 
     def forward(self, x, hx, cx, embed):
-        # state embedding
         output = self.encoder(x)
-        # passing joint state + action embedding thru LSTM
         output = torch.cat((output, embed), dim=1)
-        # stacked LSTM
         h_out = []; c_out = []
         for d in range(self.D):
             h, c = self.cell_list[d](output, (hx[d], cx[d]))
