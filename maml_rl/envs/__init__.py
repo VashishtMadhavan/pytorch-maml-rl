@@ -12,12 +12,13 @@ from gym.envs.registration import register
 # ----------------------------------------
 
 for k in [5, 10, 50]:
-    register(
-        'Bandit-K{0}-v0'.format(k),
-        entry_point='maml_rl.envs.bandit:BernoulliBanditEnv',
-        kwargs={'k': k},
-        max_episode_steps=10
-    )
+    for n in [10, 100, 500]:
+        register(
+            'Bandit-K{0}-N{1}-v0'.format(k, n),
+            entry_point='maml_rl.envs.bandit:BernoulliBanditEnv',
+            kwargs={'k': k, 'n': n},
+            max_episode_steps=1000
+        )
 
 # TabularMDP
 # ----------------------------------------
