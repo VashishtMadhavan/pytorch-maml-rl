@@ -37,12 +37,12 @@ class GRUPolicy(nn.Module):
         self.lstm_size = lstm_size
 
         lstm_input_size = self.input_size + self.output_size + 3
-        self.gru = nn.GRUPolicy(lstm_input_size, hidden_size=self.lstm_size)
+        self.gru = nn.GRUCell(lstm_input_size, hidden_size=self.lstm_size)
         self.pi = nn.Linear(self.lstm_size, self.output_size)
         self.v = nn.Linear(self.lstm_size, 1)
 
     def forward(self, x, hx, embed):
         output = torch.cat((x, embed), dim=1)
-        h = self.lstm(output, hx)
+        h = self.gru(output, hx)
         return Categorical(logits=self.pi(h)), self.v(h), h
 
