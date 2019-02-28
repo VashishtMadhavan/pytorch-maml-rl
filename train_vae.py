@@ -129,7 +129,6 @@ def main(args):
 					n = 8
 					comparison = torch.cat([data[:n], 
 						pred.view(args.batch_size, obs_shape[2], obs_shape[0], obs_shape[1])[:n]])
-					comparison = comparison[:, :1, :, :]
 					save_image(comparison.cpu(), '{0}/reconstruction_{1}.png'.format(args.outdir, ep), nrow=n)
 
 		print('====> Epoch: {} TrainLoss: {:.4f}  TestLoss: {:.4f}'.format(ep, np.mean(train_loss), np.mean(test_loss)))
@@ -138,7 +137,7 @@ def main(args):
 		with torch.no_grad():
 			z_sample = torch.randn(32, args.hidden).to(device)
 			pred_sample = model.decode(z_sample).cpu()
-			save_image(pred_sample.view(32, obs_shape[2], obs_shape[0], obs_shape[1])[:, :1, :, :], '{0}/sample_{1}.png'.format(args.outdir, ep))
+			save_image(pred_sample.view(32, obs_shape[2], obs_shape[0], obs_shape[1]), '{0}/sample_{1}.png'.format(args.outdir, ep))
 
 	with open(os.path.join(args.outdir, 'final.pt'), 'wb') as f:
 		torch.save(model.state_dict(), f)
