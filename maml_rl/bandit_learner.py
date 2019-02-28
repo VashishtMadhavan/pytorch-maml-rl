@@ -6,7 +6,7 @@ import numpy as np
 import multiprocessing as mp
 from maml_rl.envs.subproc_vec_env import SubprocVecEnv
 from maml_rl.episode import LSTMBatchEpisodes
-from maml_rl.policies import LSTMPolicy
+from maml_rl.policies import LSTMPolicy, GRUPolicy
 
 def make_env(env_name):
     def _make_env():
@@ -42,7 +42,7 @@ class BanditLearner(object):
         self.num_actions = self.envs.action_space.n
 
         self.lstm_size = lstm_size
-        self.policy = LSTMPolicy(input_size=self.obs_shape[0], output_size=self.num_actions, lstm_size=self.lstm_size)
+        self.policy = GRUPolicy(input_size=self.obs_shape[0], output_size=self.num_actions, lstm_size=self.lstm_size)
 
         # Optimization Variables
         self.lr = lr
@@ -62,10 +62,9 @@ class BanditLearner(object):
         T = episodes.observations.size(0)
         values, log_probs, entropy = [], [], []
         hx = torch.zeros(self.batch_size, self.lstm_size).to(device=self.device)
-        cx = torch.zeros(self.batch_size, self.lstm_size).to(device=self.device)
         
         for t in range(T):
-            pi, v, hx, cx = self.policy(episodes.observations[t], hx, cx, episodes.embeds[t])
+            pi, v, hx = self.policy(episodes.observations[t], hx, episodes.embeds[t])
             values.append(v)
             entropy.append(pi.entropy())
             if ratio:
@@ -156,12 +155,11 @@ class BanditLearner(object):
         embed_tensor = torch.zeros(self.num_workers, self.num_actions + 3).to(device=self.device)
         embed_tensor[:, 0] = 1.
         hx = torch.zeros(self.num_workers, self.lstm_size).to(device=self.device)
-        cx = torch.zeros(self.num_workers, self.lstm_size).to(device=self.device)
 
         while (not all(dones)) or (not self.queue.empty()):
             with torch.no_grad():
                 obs_tensor = torch.from_numpy(observations).to(device=self.device)
-                act_dist, values_tensor, hx, cx = self.policy(obs_tensor, hx, cx, embed_tensor)
+                act_dist, values_tensor, hx = self.policy(obs_tensor, hx, embed_tensor)
                 act_tensor = act_dist.sample()
 
                 # cpu variables for logging
@@ -180,7 +178,6 @@ class BanditLearner(object):
             dones_tensor = torch.from_numpy(dones.astype(np.float32)).to(device=self.device)
             timers[dones] = 0.
             hx[dones_tensor == 1] = 0.
-            cx[dones_tensor == 1] = 0.
             embed_tensor[dones_tensor == 1] = 0.
             embed_tensor[dones_tensor == 1, 0] = 1.
 

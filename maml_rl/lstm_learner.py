@@ -7,7 +7,7 @@ import multiprocessing as mp
 
 from maml_rl.envs.subproc_vec_env import SubprocVecEnv
 from maml_rl.episode import LSTMBatchEpisodes
-from maml_rl.policies import ConvLSTMPolicy, ConvCLSTMPolicy
+from maml_rl.policies import ConvLSTMPolicy, ConvCLSTMPolicy, ConvGRUPolicy
 
 def make_env(env_name):
     def _make_env():
@@ -48,7 +48,7 @@ class LSTMLearner(object):
 
         if not self.use_clstm:
             self.lstm_size = 256
-            self.policy = ConvLSTMPolicy(input_size=self.obs_shape, output_size=self.num_actions,
+            self.policy = ConvGRUPolicy(input_size=self.obs_shape, output_size=self.num_actions,
                 use_bn=use_bn, cnn_type=cnn_type, D=self.D, N=self.N)
         else:
             self.lstm_size = 32
@@ -74,13 +74,11 @@ class LSTMLearner(object):
         values, log_probs, entropy = [], [], []
         if not self.use_clstm:
             hx = torch.zeros(self.D, self.batch_size, self.lstm_size).to(device=self.device)
-            cx = torch.zeros(self.D, self.batch_size, self.lstm_size).to(device=self.device)
         else:
             hx = torch.zeros(self.D, self.batch_size, self.lstm_size, 7, 7).to(device=self.device)
-            cx = torch.zeros(self.D, self.batch_size, self.lstm_size, 7, 7).to(device=self.device)
 
         for t in range(T):
-            pi, v, hx, cx = self.policy(episodes.observations[t], hx, cx, episodes.embeds[t])
+            pi, v, hx = self.policy(episodes.observations[t], hx, episodes.embeds[t])
             values.append(v)
             entropy.append(pi.entropy())
             if ratio:
@@ -173,15 +171,13 @@ class LSTMLearner(object):
         embed_tensor[:, 0] = 1.
         if not self.use_clstm:
             hx = torch.zeros(self.D, self.num_workers, self.lstm_size).to(device=self.device)
-            cx = torch.zeros(self.D, self.num_workers, self.lstm_size).to(device=self.device)
         else:
             hx = torch.zeros(self.D, self.num_workers, self.lstm_size, 7, 7).to(device=self.device)
-            cx = torch.zeros(self.D, self.num_workers, self.lstm_size, 7, 7).to(device=self.device)
 
         while (not all(dones)) or (not self.queue.empty()):
             with torch.no_grad():
                 obs_tensor = torch.from_numpy(observations).to(device=self.device)
-                act_dist, values_tensor, hx, cx = self.policy(obs_tensor, hx, cx, embed_tensor)
+                act_dist, values_tensor, hx = self.policy(obs_tensor, hx, embed_tensor)
                 act_tensor = act_dist.sample()
 
                 # cpu variables for logging
@@ -207,10 +203,8 @@ class LSTMLearner(object):
             dones_tensor = torch.from_numpy(dones.astype(np.float32)).to(device=self.device)
             if not self.use_clstm:
                 hx[:, dones_tensor == 1, :] = 0.
-                cx[:, dones_tensor == 1, :] = 0.
             else:
                 hx[:, dones_tensor == 1, :, :, :] = 0.
-                cx[:, dones_tensor == 1, :, :, :] = 0.
 
             embed_tensor[dones_tensor == 1] = 0.
             embed_tensor[dones_tensor == 1, 0] = 1.
