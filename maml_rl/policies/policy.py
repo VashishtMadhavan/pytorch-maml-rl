@@ -77,7 +77,6 @@ class ResnetBlock(nn.Module):
             out = self.conv5(out) + identity
         return out
 
-
 class NatureCnn(nn.Module):
     def __init__(self, input_size, use_bn=False):
         super(NatureCnn, self).__init__()
@@ -109,7 +108,6 @@ class NatureCnn(nn.Module):
         out = self.relu(self.fc(out))
         return out
 
-
 class ImpalaCnn(nn.Module):
     def __init__(self, input_size, use_bn=False):
         super(ImpalaCnn, self).__init__()
@@ -131,7 +129,6 @@ class ImpalaCnn(nn.Module):
         out = self.relu(out)
         out = self.relu(self.fc(out))
         return out
-
 
 class ConvLSTMCell(nn.Module):
     def __init__(self, input_size, input_dim, hidden_dim, kernel_size, bias=True):
@@ -171,9 +168,57 @@ class ConvLSTMCell(nn.Module):
         
         comb_conv = self.conv(comb)
         cc_i, cc_f, cc_o, cc_g = torch.split(comb_conv, self.hidden_dim, dim=1)
-        cx = torch.sigmoid(cc_f) * cx + torch.sigmoid(cc_i) * torch.tanh(cc_g)
-        hx = torch.sigmoid(cc_o) * torch.tanh(cx)
+        cx = F.sigmoid(cc_f) * cx + F.sigmoid(cc_i) * F.tanh(cc_g)
+        hx = F.sigmoid(cc_o) * F.tanh(cx)
         return hx, cx
+
+class ConvGRUCell(nn.Module):
+    def __init__(self, input_size, input_dim, hidden_dim, kernel_size, bias=True):
+        """
+        Initialize ConvGRU cell.
+
+        Parameters
+        ----------
+        input_size: (int, int)
+            Height and width of input tensor as (height, width).
+        input_dim: int
+            Number of channels of input tensor.
+        hidden_dim: int
+            Number of channels of hidden state.
+        kernel_size: (int, int)
+            Size of the convolutional kernel.
+        bias: bool
+            Whether or not to add the bias.
+        """
+        super(ConvGRUCell, self).__init__()
+        self.height, self.width = input_size
+        self.input_dim  = input_dim
+        self.hidden_dim = hidden_dim
+        self.kernel_size = kernel_size
+        self.padding = kernel_size // 2
+        self.bias = bias
+
+        self.conv = nn.Conv2d(in_channels=self.input_dim + self.hidden_dim,
+                              out_channels=2 * self.hidden_dim,
+                              kernel_size=self.kernel_size,
+                              padding=self.padding,
+                              bias=self.bias)
+        self.conv_n = nn.Conv2d(in_channels=self.input_dim + self.hidden_dim,
+                              out_channels=self.hidden_dim,
+                              kernel_size=self.kernel_size,
+                              padding=self.padding,
+                              bias=self.bias)
+
+    def forward(self, x, state):
+        hx = state
+        comb = torch.cat([x, hx], dim=1)  # concatenate along channel axis
+        comb_conv = self.conv(comb)
+        cc_r, cc_z = torch.split(comb_conv, self.hidden_dim, dim=1)
+
+        hn = torch.cat([x, F.sigmoid(cc_r) * hx], dim=1)
+        cc_n = self.conv_n(hn)
+        hx = (1 - F.sigmoid(cc_z)) * F.tanh(cc_n) + F.sigmoid(cc_z) * hx
+        return hx
 
 class ConvLSTM(nn.Module):
     def __init__(self, input_size, input_dim, hidden_dim, kernel_size, num_layers,
@@ -224,3 +269,53 @@ class ConvLSTM(nn.Module):
             last_state_list.append([h, c])
 
         return layer_output_list[-1], last_state_list
+
+class ConvGRU(nn.Module):
+    def __init__(self, input_size, input_dim, hidden_dim, kernel_size, num_layers,
+                 batch_first=False, bias=True):
+        super(ConvGRU, self).__init__()
+        self.height, self.width = input_size
+
+        self.input_dim  = input_dim
+        self.hidden_dim = hidden_dim
+        self.kernel_size = kernel_size
+        self.num_layers = num_layers
+        self.batch_first = batch_first
+        self.bias = bias
+
+        cell_list = []
+        for i in range(0, self.num_layers):
+            cur_input_dim = self.input_dim if i == 0 else self.hidden_dim
+            cell_list.append(ConvGRUCell(input_size=(self.height, self.width),
+                                          input_dim=cur_input_dim,
+                                          hidden_dim=self.hidden_dim,
+                                          kernel_size=self.kernel_size,
+                                          bias=self.bias))
+
+        self.cell_list = nn.ModuleList(cell_list)
+
+    def forward(self, x, state):
+        if not self.batch_first:
+            # (t, b, c, h, w) -> (b, t, c, h, w)
+            x = x.permute(1, 0, 2, 3, 4)
+
+        layer_output_list = []
+        last_state_list   = []
+
+        seq_len = x.size(1)
+        cur_layer_input = x
+
+        for layer_idx in range(self.num_layers):
+            h = state[layer_idx]
+            output_inner = []
+            for t in range(seq_len):
+                h = self.cell_list[layer_idx](cur_layer_input[:, t, :, :, :], h)
+                output_inner.append(h)
+
+            layer_output = torch.stack(output_inner, dim=1)
+            cur_layer_input = layer_output
+
+            layer_output_list.append(layer_output)
+            last_state_list.append(h)
+
+        return layer_output_list[-1], last_state_lis

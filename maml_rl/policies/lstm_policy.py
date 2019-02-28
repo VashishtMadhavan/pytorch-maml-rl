@@ -31,7 +31,7 @@ class GRUPolicy(nn.Module):
     Baseline GRU Architecture
     """
     def __init__(self, input_size, output_size, lstm_size=256):
-        super(LSTMPolicy, self).__init__()
+        super(GRUPolicy, self).__init__()
         self.input_size = input_size
         self.output_size = output_size
         self.lstm_size = lstm_size

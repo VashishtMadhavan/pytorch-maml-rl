@@ -53,7 +53,7 @@ class ConvGRUPolicy(nn.Module):
     """
     def __init__(self, input_size, output_size, use_bn=False,
                 cnn_type='nature', D=1, N=1):
-        super(ConvLSTMPolicy, self).__init__()
+        super(ConvGRUPolicy, self).__init__()
         self.input_size = input_size
         self.output_size = output_size
         self.use_bn = use_bn
