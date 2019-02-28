@@ -92,7 +92,11 @@ def main(args):
 	optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 
 	# Dataset Loading
-	observations = collect_random_episodes(env, eps=100)
+	if not os.path.exists('vae_data.npy'):
+		observations = collect_random_episodes(env, eps=10000)
+		np.save('vae_data.npy', observations)
+	else:
+		observations = np.load('vae_data.npy')
 	N = observations.shape[0]
 	np.random.shuffle(observations)
 	trainX, testX = observations[:int(0.8 * N)], observations[int(0.8 * N):]
