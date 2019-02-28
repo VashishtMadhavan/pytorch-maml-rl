@@ -58,12 +58,12 @@ if __name__ == '__main__':
     parser.add_argument('--tau', type=float, default=0.3, help='discount factor for GAE')
     parser.add_argument('--vf_coef', type=float, default=0.05, help='value function coeff')
     parser.add_argument('--ent_coef', type=float, default=0.01, help='entropy bonus coeff')
-    parser.add_argument('--batch-size', type=int, default=1000, help='num episodes for gradient est.')
+    parser.add_argument('--batch-size', type=int, default=2500, help='num episodes for gradient est.')
     parser.add_argument('--train-iters', type=int, default=1000, help='training iterations')
 
     # Miscellaneous
     parser.add_argument('--outdir', type=str, default='bandit_debug')
-    parser.add_argument('--workers', type=int, default=4, help='num workers for traj sampling')
+    parser.add_argument('--workers', type=int, default=100, help='num workers for traj sampling')
     args = parser.parse_args()
 
     # Device
