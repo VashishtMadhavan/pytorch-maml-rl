@@ -14,7 +14,7 @@ def main(args):
 
     learner = BanditLearner(k=args.k, n=args.n, batch_size=args.batch_size, ent_coef=args.ent_coef,
         num_workers=args.workers, num_batches=args.train_iters, gamma=args.gamma, lr=args.lr, 
-        tau=args.tau, vf_coef=args.vf_coef, device=args.device)
+        tau=args.tau, vf_coef=args.vf_coef, device=args.device, D=args.d)
 
     logger.set_keys(['MeanReward:','Batch:','Tsteps:','TimePerBatch:'])
     batch = 0
@@ -53,6 +53,7 @@ if __name__ == '__main__':
     # General
     parser.add_argument('--k', type=int, default=5)
     parser.add_argument('--n', type=int, default=10)
+    parser.add_argument('--d', type=int, default=1)
     parser.add_argument('--lr', type=float, default=1e-3)
     parser.add_argument('--gamma', type=float, default=0.99)
     parser.add_argument('--tau', type=float, default=0.3, help='discount factor for GAE')

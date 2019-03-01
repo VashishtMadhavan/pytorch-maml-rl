@@ -24,12 +24,13 @@ class BanditLearner(object):
     """
     def __init__(self, k, n, batch_size, num_workers, num_batches=1000, gamma=0.95, lr=0.01, 
     	        tau=1.0, ent_coef=.01, vf_coef=0.5, lstm_size=50, clip_frac=0.2, device='cpu',
-                surr_epochs=3, surr_batches=4, max_grad_norm=0.5):
+                surr_epochs=3, surr_batches=4, max_grad_norm=0.5, D=1):
         self.k = k
         self.n = n
         self.vf_coef = vf_coef
         self.ent_coef = ent_coef
         self.gamma = gamma
+        self.D = D
 
         # Sampler variables
         self.num_batches = num_batches
@@ -42,7 +43,7 @@ class BanditLearner(object):
         self.num_actions = self.envs.action_space.n
 
         self.lstm_size = lstm_size
-        self.policy = GRUPolicy(input_size=self.obs_shape[0], output_size=self.num_actions, lstm_size=self.lstm_size)
+        self.policy = GRUPolicy(input_size=self.obs_shape[0], output_size=self.num_actions, lstm_size=self.lstm_size, D=self.D)
 
         # Optimization Variables
         self.lr = lr
@@ -61,7 +62,7 @@ class BanditLearner(object):
     def _forward_policy(self, episodes, ratio=False):
         T = episodes.observations.size(0)
         values, log_probs, entropy = [], [], []
-        hx = torch.zeros(self.batch_size, self.lstm_size).to(device=self.device)
+        hx = torch.zeros(self.D, self.batch_size, self.lstm_size).to(device=self.device)
         
         for t in range(T):
             pi, v, hx = self.policy(episodes.observations[t], hx, episodes.embeds[t])
@@ -154,7 +155,7 @@ class BanditLearner(object):
 
         embed_tensor = torch.zeros(self.num_workers, self.num_actions + 3).to(device=self.device)
         embed_tensor[:, 0] = 1.
-        hx = torch.zeros(self.num_workers, self.lstm_size).to(device=self.device)
+        hx = torch.zeros(self.D, self.num_workers, self.lstm_size).to(device=self.device)
 
         while (not all(dones)) or (not self.queue.empty()):
             with torch.no_grad():
@@ -177,7 +178,7 @@ class BanditLearner(object):
             # Update hidden states
             dones_tensor = torch.from_numpy(dones.astype(np.float32)).to(device=self.device)
             timers[dones] = 0.
-            hx[dones_tensor == 1] = 0.
+            hx[:, dones_tensor == 1, :] = 0.
             embed_tensor[dones_tensor == 1] = 0.
             embed_tensor[dones_tensor == 1, 0] = 1.
 
