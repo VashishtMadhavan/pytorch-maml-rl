@@ -19,6 +19,15 @@ def one_hot(actions, num_actions):
     x[np.arange(len(actions)), actions] = 1.
     return x
 
+def coordinate_tile(x):
+    batch_size, y_dim, x_dim, _ = x.shape
+    ii = np.tile(np.expand_dims(np.arange(x_dim), 0), (batch_size, 1))
+    ii = np.expand_dims(np.tile(np.expand_dims(ii, -1), (1, 1, y_dim)), -1)
+
+    jj = np.tile(np.expand_dims(np.arange(y_dim), 0), (batch_size, 1))
+    jj = np.expand_dims(np.tile(np.expand_dims(jj, 1), (1, x_dim, 1)), -1)
+    return ii / x_dim, jj / y_dim
+
 class LSTMLearner(object):
     """
     LSTM Learner using A2C/PPO
@@ -165,6 +174,7 @@ class LSTMLearner(object):
 
         self.envs.reset_task([None for _ in range(self.num_workers)])
         observations, batch_ids = self.envs.reset()
+        #x_tile, y_tile = coordinate_tile(observations)
         dones = [False]
 
         embed_tensor = torch.zeros(self.num_workers, self.num_actions + 2).to(device=self.device)
@@ -176,6 +186,7 @@ class LSTMLearner(object):
 
         while (not all(dones)) or (not self.queue.empty()):
             with torch.no_grad():
+                #observations = np.concatenate((observations, x_tile, y_tile), axis=-1).astype(np.float32)
                 obs_tensor = torch.from_numpy(observations).to(device=self.device)
                 act_dist, values_tensor, hx = self.policy(obs_tensor, hx, embed_tensor)
                 act_tensor = act_dist.sample()
