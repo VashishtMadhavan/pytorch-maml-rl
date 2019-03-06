@@ -34,11 +34,11 @@ class BetaVAE(nn.Module):
 			nn.ReLU(inplace=True),
 		)
 
-		self.mu_fc = nn.Linear(2304, self.hidden_size)
-		self.sigma_fc = nn.Linear(2304, self.hidden_size)
+		self.encode_fc = nn.Linear(2304, self.hidden_size * 2)
 		self.decode_fc = nn.Linear(self.hidden_size, 1024)
 
 		self.decoder = nn.Sequential(
+			nn.ReLU(inplace=True),
 			nn.ConvTranspose2d(1024, 128, kernel_size=6, stride=2),
 			nn.ReLU(inplace=True),
 			nn.ConvTranspose2d(128, 64, kernel_size=7, stride=2),
@@ -49,10 +49,24 @@ class BetaVAE(nn.Module):
 			nn.Sigmoid(),
 		)
 
+		self.encoder.apply(self.weight_init)
+		self.encode_fc.apply(self.weight_init)
+		self.decode_fc.apply(self.weight_init)
+		self.decoder.apply(self.weight_init)
+
+	def weight_init(self, m):
+		if isinstance(m, (nn.Linear, nn.Conv2d)):
+			nn.init.kaiming_normal_(m.weight)
+			if m.bias is not None:
+				m.bias.data.fill_(0)
+
 	def encode(self, x):
 		h = self.encoder(x)
 		h = h.view(h.size(0), -1)
-		return self.mu_fc(h), self.sigma_fc(h)
+		h = self.encode_fc(h)
+		mu = h[:, :self.hidden_size]
+		sigma = h[:, self.hidden_size:]
+		return mu, sigma
 
 	def decode(self, z):
 		h = self.decode_fc(z)
@@ -60,7 +74,7 @@ class BetaVAE(nn.Module):
 		return self.decoder(h)
 
 	def sample_latent(self, mu, sigma):
-		std = torch.exp(0.5 * sigma)
+		std = sigma.div(2).exp()
 		eps = torch.randn_like(std)
 		return eps.mul(std).add_(mu)
 
@@ -70,9 +84,14 @@ class BetaVAE(nn.Module):
 		return self.decode(z), mu, sigma
 
 def vae_loss(x_pred, x, mu, sigma, beta=1.0):
-	bce = F.binary_cross_entropy(x_pred, x, size_average=False)
-	kl_div = -0.5 * torch.sum(1 + sigma - mu.pow(2) - sigma.exp())
+	batch_size = x_pred.size(0)
+	# vae_loss
+	bce = F.mse_loss(x_pred, x, size_average=False).div(batch_size)
+	# kl loss
+	kl_div = -0.5 * (1 + sigma - mu.pow(2) - sigma.exp())
+	kl_div = kl_div.sum(1).mean(0, True)
 	return bce + beta * kl_div
+
 
 def collect_random_episodes(env, eps=10):
 	ep_obs = []
@@ -152,7 +171,7 @@ if __name__ == "__main__":
 	parser.add_argument('--enc', action='store_true', help='to use random projections or not')
 	parser.add_argument('--hidden', type=int, default=32, help='hidden size')
 	parser.add_argument('--outdir', type=str, default='results/', help='where to save results')
-	parser.add_argument('--lr', type=float, default=1e-3, help='learning rate')
+	parser.add_argument('--lr', type=float, default=1e-4, help='learning rate')
 	parser.add_argument('--batch_size', type=int, default=64, help='training batch size')
 	parser.add_argument('--epochs', type=int, default=100, help='nmber train epochs')
 	parser.add_argument('--beta', type=float, default=1.0, help='beta for disentagled representations')
