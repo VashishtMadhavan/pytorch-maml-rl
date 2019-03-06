@@ -31,6 +31,7 @@ class CustomGameMetaEnv(gym.Env):
         self.done_counter = 0
         self.curr_task = None
         self.t = 0
+        self.reward_mult = 10.0
 
     def seed(self, seed=None):
         if not seed:
@@ -68,7 +69,7 @@ class CustomGameMetaEnv(gym.Env):
         return image_rotated
 
     def step(self, action):
-        reward = self.game_state.act(self._action_set[action])
+        reward = self.game_state.act(self._action_set[action]) * self.reward_mult
         state = self._get_image()
         terminal = self.game_state.game_over()
         self.t += 1
