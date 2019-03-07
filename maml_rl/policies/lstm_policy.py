@@ -83,3 +83,24 @@ class GRUPolicy(nn.Module):
             h_out.append(output)
         return Categorical(logits=self.pi(output)), self.v(output), torch.stack(h_out)
 
+class FFPolicy(nn.Module):
+    """
+    Baseline GRU Architecture
+    """
+    def __init__(self, input_size, output_size, D=1):
+        super(FFPolicy, self).__init__()
+        self.input_size = input_size
+        self.output_size = output_size
+        self.D = D
+
+        self.fc = nn.Linear(self.input_size, 64)
+        self.fc2 = nn.Linear(64, 64)
+
+        self.pi = nn.Linear(64, self.output_size)
+        self.v = nn.Linear(64, 1)
+
+    def forward(self, x):
+        output = F.relu(self.fc(x))
+        output = F.relu(self.fc2(output))
+        return Categorical(logits=self.pi(output)), self.v(output)
+

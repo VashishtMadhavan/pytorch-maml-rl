@@ -53,17 +53,17 @@ if __name__ == '__main__':
     # General
     parser.add_argument('--env', type=str, default='GridGame-v0')
     parser.add_argument('--d', type=int, default=1)
-    parser.add_argument('--lr', type=float, default=1e-3)
+    parser.add_argument('--lr', type=float, default=2.5e-4)
     parser.add_argument('--gamma', type=float, default=0.99)
-    parser.add_argument('--tau', type=float, default=0.3, help='discount factor for GAE')
-    parser.add_argument('--vf_coef', type=float, default=0.05, help='value function coeff')
+    parser.add_argument('--tau', type=float, default=0.95, help='discount factor for GAE')
+    parser.add_argument('--vf_coef', type=float, default=0.5, help='value function coeff')
     parser.add_argument('--ent_coef', type=float, default=0.01, help='entropy bonus coeff')
     parser.add_argument('--batch-size', type=int, default=1000, help='num episodes for gradient est.')
     parser.add_argument('--train-iters', type=int, default=1000, help='training iterations')
 
     # Miscellaneous
     parser.add_argument('--outdir', type=str, default='grid_debug')
-    parser.add_argument('--workers', type=int, default=10, help='num workers for traj sampling')
+    parser.add_argument('--workers', type=int, default=100, help='num workers for traj sampling')
     args = parser.parse_args()
 
     # Device

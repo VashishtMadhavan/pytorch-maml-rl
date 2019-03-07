@@ -112,7 +112,7 @@ def main(args):
 
 	# Dataset Loading
 	if not os.path.exists('vae_data.npy'):
-		observations = collect_random_episodes(env, eps=10000)
+		observations = collect_random_episodes(env, eps=6500)
 		np.save('vae_data.npy', observations)
 	else:
 		observations = np.load('vae_data.npy')

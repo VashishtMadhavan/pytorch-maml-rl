@@ -20,13 +20,15 @@ def collect_batch_episodes(env, vae, test_eps=100):
 	episodes = []
 	for _ in range(test_eps):
 		obs = env.reset(); done = False
-		ep_obs = []; ep_dict = {}; ep_rew = []; ep_done = []
+		ep_obs = []; ep_dict = {}; ep_rew = []; ep_done = []; ep_act = []
 		while not done:
-			obs, rew, done, info = env.step(env.action_space.sample())
-			ep_obs.append(obs); ep_rew.append(rew); ep_done.append(float(done))
+			act = env.action_space.sample()
+			obs, rew, done, info = env.step(act)
+			ep_obs.append(obs); ep_rew.append(rew); ep_done.append(float(done)); ep_act.append(act)
 		ep_obs = np.array(ep_obs, copy=False)
 		ep_rew = np.array(ep_rew, copy=False)
 		ep_done = np.array(ep_done, copy=False)
+		ep_act = np.array(ep_act, copy=False)
 
 		with torch.no_grad():
 			mu, sig = vae.encode(torch.from_numpy(ep_obs))
@@ -34,6 +36,7 @@ def collect_batch_episodes(env, vae, test_eps=100):
 		ep_dict['obs'] = latent
 		ep_dict['done'] = torch.from_numpy(ep_done)
 		ep_dict['rew'] = torch.from_numpy(ep_rew)
+		ep_dict['act'] = torch.from_numpy(ep_act)
 		episodes.append(ep_dict)
 	return episodes
 
@@ -46,41 +49,14 @@ class MDNRNN(nn.Module):
 		self.K = K # number of gaussians in GMM
 
 		self.gru = nn.GRUCell(self.input_size + self.action_dim, self.lstm_size)
-		self.gmm_linear = nn.Linear(self.lstm_size, (2 * self.input_size + 1) * self.K + 2)
+		self.gmm_linear = nn.Linear(self.lstm_size, self.input_size + 2)
 
 	def forward(self, x, a, hx):
 		out = torch.cat((x, a), dim=1)
 		h_out = self.gru(out, hx)
 		out = self.gmm_linear(h_out)
-
-		stride = self.input_size * self.K
-		mus = out[:, :stride]
-		mus = mus.view(mus.size(0), self.K, self.input_size)
-
-		sigmas = out[:, stride:2*stride]
-		sigmas = sigmas.view(sigmas.size(0), self.K, self.input_size)
-		sigmas = torch.exp(sigmas)
-
-		pi = out[:, 2*stride:2*stride + self.K]
-		pi = pi.view(pi.size(0), self.K)
-		logpi = F.log_softmax(pi, dim=-1)
-		rs = out[:, -2]; ds = out[:, -1]
-		return mus, sigmas, pi, rs, ds, h_out
-
-def gmm_loss(z_next, mus, sigmas, logpi, reduce=True):
-	# each tensor is (BS, K, input_size)
-	normal_dist = Normal(mus, sigmas)
-	g_log_probs = normal_dist.log_prob(z_next)
-	g_log_probs = logpi + torch.sum(g_log_probs, dim=-1)
-	max_log_probs = torch.max(g_log_probs, dim=-1, keepdim=True)[0]
-	g_log_probs = g_log_probs - max_log_probs
-
-	probs = torch.sum(torch.exp(g_log_probs), dim=-1)
-	log_prob = max_log_probs.squeeze() + torch.log(probs)
-
-	if reduce:
-		return -torch.mean(log_prob)
-	return -log_prob
+		preds = out[:, :-2]; rs = out[:, -2]; ds = out[:, -1]
+		return preds, rs, ds, h_out
 
 def main(args):
 	env = gym.make('CustomGame-v0')
@@ -106,18 +82,17 @@ def main(args):
 		mdn.train(); train_loss = []
 		for batch_idx in range(N):
 			data_dict = data[np.random.randint(N)].to(device)
-			data_batch, rew_batch, done_batch = data_dict['obs'], data_dict['rew'], data_dict['done']
+			data_batch, rew_batch, done_batch, act_batch = data_dict['obs'], data_dict['rew'], data_dict['done'], data_dict['act']
 			hx = torch.zeros(1, 256)
 			for t in range(data_batch.size(0) - 1):
 				optimizer.zero_grad()
-				mu, sigma, pi, r, d, hx = model(data_batch[t])
+				pred, r, d, hx = model(data_batch[t], act_batch[t], hx)
 
 				# computing losses
-				pred_loss = gmm_loss(data_batch[t+1], mu, sigma, logpi)
+				pred_loss = F.mse_loss(pred, data_batch[t+1])
 				done_loss = F.binary_cross_entropy_with_logits(d, done_batch[t])
 				rew_loss = F.mse_loss(r, rew_batch[t])
 				loss = (pred_loss + done_loss + rew_loss) / (args.hidden + 2)
-
 				loss.backward()
 				train_loss.append(loss.item())
 				optimizer.step()
