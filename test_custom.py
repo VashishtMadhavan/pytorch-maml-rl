@@ -8,7 +8,8 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 
 import maml_rl.envs
-from maml_rl.policies import ConvLSTMPolicy, ConvCLSTMPolicy
+from maml_rl.policies import ConvGRUPolicy, ConvCGRUPolicy, ConvLSTMPolicy
+from maml_rl.lstm_learner import coordinate_tile
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -31,7 +32,7 @@ def load_params(policy_path, env, device, clstm=False, cnn_type='nature', D=1, N
     obs_shape = env.observation_space.shape
     a_dim = env.action_space.n
     if not clstm:
-        policy = ConvLSTMPolicy(obs_shape, a_dim, cnn_type=cnn_type, D=D, N=N)
+        policy = ConvGRUPolicy(obs_shape, a_dim, cnn_type=cnn_type, D=D, N=N)
     else:
         policy = ConvCLSTMPolicy(obs_shape, a_dim, D=D, N=N)
     policy.load_state_dict(torch.load(policy_path, map_location=device if device == 'cpu' else None))
@@ -47,16 +48,17 @@ def evaluate(env, policy, device, test_eps=10, greedy=False, render=False, rando
         e_tensor[:, 0] = 1.
         if not clstm:
             hx = torch.zeros(policy.D, 1, 256).to(device=device)
-            cx = torch.zeros(policy.D, 1, 256).to(device=device)
         else:
             hx = torch.zeros(policy.D, 1, 32, 7, 7).to(device=device)
-            cx = torch.zeros(policy.D, 1, 32, 7, 7).to(device=device)
         R = 0; T = 0
+        #x_tile, y_tile = coordinate_tile(np.array(obs)[None])
 
         while not done:
             frames.append(np.array(obs))
             if render: env.render()
-            obs_tensor = torch.from_numpy(np.array(obs)[None]).to(device=device)
+            #obs_inp = np.concatenate((np.array(obs)[None], x_tile, y_tile), axis=-1).astype(np.float32)
+            obs_inp = np.array(obs)[None]
+            obs_tensor = torch.from_numpy(obs_inp).to(device=device)
             action_dist, value_tensor, hx, cx = policy(obs_tensor, hx, cx, e_tensor)
 
             if greedy:
@@ -80,7 +82,7 @@ def evaluate(env, policy, device, test_eps=10, greedy=False, render=False, rando
         epR.append(R); epT.append(T)
     if record:
         imageio.mimsave("movie.gif", frames)
-    return epR, epT, sepR
+    return epR, epT, np.sign(sepR)
  
 def main():
     args = parse_args()
@@ -106,6 +108,7 @@ def main():
         plt.bar([1,2,3,4],type_err)
         plt.savefig("error_bdown.png")
         print("SecondMeanRew: {}".format(np.mean(second_ep_rew)))
+        print("SecondStdRew: {}".format(np.std(second_ep_rew) / np.sqrt(len(second_ep_rew))))
 
     if args.save:
         batch = args.checkpoint.split('/')[-1].split('.')[0].split('-')[1]

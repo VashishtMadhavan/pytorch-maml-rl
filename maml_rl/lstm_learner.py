@@ -7,7 +7,8 @@ import multiprocessing as mp
 
 from maml_rl.envs.subproc_vec_env import SubprocVecEnv
 from maml_rl.episode import LSTMBatchEpisodes
-from maml_rl.policies import ConvLSTMPolicy, ConvCLSTMPolicy, ConvGRUPolicy
+from maml_rl.policies import ConvLSTMPolicy, ConvCLSTMPolicy, ConvGRUPolicy, GRUVaePolicy
+from train_vae import BetaVAE
 
 def make_env(env_name):
     def _make_env():
@@ -64,11 +65,18 @@ class LSTMLearner(object):
             self.policy = ConvCLSTMPolicy(input_size=self.obs_shape, output_size=self.num_actions,
                 use_bn=use_bn, D=self.D, N=self.N)
 
+        if self.latent:
+            vae_encoder = BetaVAE(input_size=self.obs_shape[-1], hidden_size=32)
+            vae_encoder.load_state_dict(torch.load(self.latent, map_location=device.type if device.type == 'cpu' else None))
+            for v in vae_encoder.parameters():
+                v.requires_grad = False
+            self.policy = GRUVaePolicy(output_size=self.num_actions, encoder_model=vae_encoder)
+
         # Optimization Variables
         self.lr = lr
         self.tau = tau
         self.clip_frac = clip_frac
-        self.optimizer = optim.Adam(self.policy.parameters(), lr=self.lr, eps=1e-5, weight_decay=l2_coef)
+        self.optimizer = optim.Adam(filter(lambda p: p.requires_grad, self.policy.parameters()), lr=self.lr, eps=1e-5, weight_decay=l2_coef)
 
         # PPO variables
         self.surrogate_epochs = surr_epochs

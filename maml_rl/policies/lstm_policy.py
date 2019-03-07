@@ -26,6 +26,36 @@ class LSTMPolicy(nn.Module):
         h, c = self.lstm(output, (hx, cx))
         return Categorical(logits=self.pi(h)), self.v(h), h, c
 
+class GRUVaePolicy(nn.Module):
+    """
+    Baseline GRU Architecture
+    """
+    def __init__(self, output_size, encoder_model, lstm_size=256, D=1):
+        super(GRUVaePolicy, self).__init__()
+        self.output_size = output_size
+        self.lstm_size = lstm_size
+        self.D = D
+        self.encoder = encoder_model
+
+        lstm_input_size = 32 + self.output_size + 2
+        self.cell_list = [nn.GRUCell(lstm_input_size, hidden_size=self.lstm_size)]
+        for d in range(1, self.D):
+            self.cell_list.append(nn.GRUCell(self.lstm_size, self.lstm_size))
+        self.cell_list = nn.ModuleList(self.cell_list)
+        self.pi = nn.Linear(self.lstm_size, self.output_size)
+        self.v = nn.Linear(self.lstm_size, 1)
+
+    def forward(self, x, hx, embed):
+        output = x.permute(0, 3, 1, 2)
+        mu, sigma = self.encoder.encode(output)
+        output = self.encoder.sample_latent(mu, sigma)
+        output = torch.cat((output, embed), dim=1)
+        h_out = []
+        for d in range(self.D):
+            output = self.cell_list[d](output, hx[d])
+            h_out.append(output)
+        return Categorical(logits=self.pi(output)), self.v(output), torch.stack(h_out)
+
 class GRUPolicy(nn.Module):
     """
     Baseline GRU Architecture
