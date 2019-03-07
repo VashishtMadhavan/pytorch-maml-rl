@@ -66,7 +66,7 @@ class GridGameEnv(gym.Env):
         map_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'map_base.txt')
         self.map = np.loadtxt(map_file, dtype='i', delimiter=',')
         self.agent_pos, self.goal_pos = preprocess_map(self.map)
-        return self.map.flatten() / 3.0
+        return self.map.flatten().astype(np.float32) / 3.0
 
     def step(self, action):
         self.map[self.agent_pos[0], self.agent_pos[1]] = 0.
@@ -84,7 +84,7 @@ class GridGameEnv(gym.Env):
         if self.map[self.agent_pos[0], self.agent_pos[1]] == 1:
             self.agent_pos = pos
         self.map[self.agent_pos[0], self.agent_pos[1]] = 2.
-        state = self.map.flatten() / 3.0
+        state = self.map.flatten().astype(np.float32) / 3.0
         done = list(self.agent_pos) == list(self.goal_pos)
         rew = float(done) * self.reward_mult
         return state, rew, done, {}

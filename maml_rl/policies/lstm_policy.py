@@ -67,7 +67,7 @@ class GRUPolicy(nn.Module):
         self.lstm_size = lstm_size
         self.D = D
 
-        lstm_input_size = self.input_size + self.output_size + 3
+        lstm_input_size = self.input_size + self.output_size + 2
         self.cell_list = [nn.GRUCell(lstm_input_size, hidden_size=self.lstm_size)]
         for d in range(1, self.D):
             self.cell_list.append(nn.GRUCell(self.lstm_size, self.lstm_size))
