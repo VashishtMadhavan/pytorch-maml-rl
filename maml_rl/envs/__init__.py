@@ -54,6 +54,15 @@ register(
     max_episode_steps=100
 )
 
+# GridGame
+# ----------------------------------------
+register(
+    'GridGame-v0',
+    entry_point='maml_rl.envs.grid_game:GridGameEnv',
+    max_episode_steps=100
+)
+
+
 # Mujoco
 # ----------------------------------------
 
