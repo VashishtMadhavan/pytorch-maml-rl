@@ -8,33 +8,35 @@ import random
 import sys
 
 def clear_path(map_x):
-    rr = np.random.randint(1, 10, size=3)
-    map_x[2, rr[0]] = 0.; map_x[2, rr[0] - 1] = 0.
-    map_x[5, rr[1]] = 0.; map_x[5, rr[1] - 1] = 0.
-    map_x[8, rr[2]] = 0.; map_x[8, rr[2] - 1] = 0.
+    rr = np.random.randint(1, 5, size=3)
+    map_x[1, rr[0]] = 0.; map_x[1, rr[0] - 1] = 0.
+    map_x[3, rr[1]] = 0.; map_x[3, rr[1] - 1] = 0.
+    #map_x[5, rr[2]] = 0.; map_x[5, rr[2] - 1] = 0.
 
 def place_agents(map_x):
-    pos = np.array([y for y in np.argwhere(map_x == 0)])
-    choices = np.random.randint(pos.shape[0], size=2)
-    x = pos[choices[0]]; y = pos[choices[1]]
-    map_x[x[0], x[1]] = 2.
-    map_x[y[0], y[1]] = 3.
-    return x, y
+    post = []
+    for j in [2, 3]:
+        pos = np.array([y for y in np.argwhere(map_x == 0)])
+        pos = pos[pos[:,0] != 1]
+        #pos = pos[pos[:,0] == 1]
+        choice = np.random.randint(pos.shape[0])
+        x = pos[choice]
+        map_x[x[0]][x[1]] = j
+        post.append(x)
+    return post[0], post[1]
 
 def preprocess_map(map_x):
-    map_x[map_x == 12] = 1 # removing init fire position
-    map_x[map_x == 21] = 0 # removing init agent position
-    map_x[map_x == 20] = 0 # removing init princess position
-    map_x[map_x == 11] = 0 # removing init enemy position
     clear_path(map_x)
     return place_agents(map_x)
 
 class GridGameEnv(gym.Env):
     def __init__(self, task={}):
         self._task = task
-        map_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'map_base.txt')
+        map_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'map_empty.txt')
         self.map = np.loadtxt(map_file, dtype='i', delimiter=',')
         self.agent_pos, self.goal_pos = preprocess_map(self.map)
+        self.init_apos = np.array(self.agent_pos)
+        self.init_gpos = np.array(self.goal_pos)
         self.N, self.M = self.map.shape
 
         self.action_space = spaces.Discrete(5) #nothing up down left right
@@ -63,7 +65,7 @@ class GridGameEnv(gym.Env):
 
 
     def reset(self):
-        map_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'map_base.txt')
+        map_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'map_empty.txt')
         self.map = np.loadtxt(map_file, dtype='i', delimiter=',')
         self.agent_pos, self.goal_pos = preprocess_map(self.map)
         return self.map.flatten().astype(np.float32) / 3.0

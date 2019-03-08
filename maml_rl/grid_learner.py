@@ -93,7 +93,6 @@ class GridLearner(object):
         entropy_loss = weighted_mean(entropy, dim=0, weights=episodes.mask)
         return pg_loss + self.vf_coef * vf_loss - self.ent_coef * entropy_loss
 
-
     def surrogate_loss(self, episodes, inds=None):
         """
         PPO Surrogate Loss

@@ -16,6 +16,7 @@ def parse_args():
     parser.add_argument("--checkpoint", type=str)
     parser.add_argument("--render", action="store_true")
     parser.add_argument("--greedy", action="store_true")
+    parser.add_argument("--save", action="store_true")
     return parser.parse_args()
 
 def load_params(policy_path, env, device):
@@ -24,7 +25,7 @@ def load_params(policy_path, env, device):
     	map_location=device if device == 'cpu' else None))
     return policy
 
-def evaluate(env, policy, device, test_eps=10, greedy=False, render=False, random=False):
+def evaluate(env, policy, device, test_eps=10, greedy=False, render=False):
     nA = env.action_space.n; frames = []
     epR = []; epT = []; sepR = []
     for t in tqdm(range(test_eps)):
@@ -59,10 +60,17 @@ def main():
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     policy = load_params(args.checkpoint, env, device)
-    episode_rew, episode_steps, second_ep_rew = evaluate(env, policy, device, greedy=args.greedy, 
-    	test_eps=args.test_eps, render=args.render, random=args.random)
+    episode_rew, episode_steps, second_ep_rew = evaluate(env, policy, device, greedy=args.greedy,
+        test_eps=args.test_eps, render=args.render)
 
-    f = sys.stdout
+    if args.save:
+        batch = args.checkpoint.split('/')[-1].split('.')[0].split('-')[1]
+        save_dir = 'test_saves/'
+        if not os.path.exists(save_dir):
+            os.makedirs(save_dir)
+        f = open('{}/{}.txt'.format(save_dir, batch), 'a')
+    else:
+        f = sys.stdout
     print("MeanRew: {}".format(np.mean(episode_rew)), file=f)
     print("Std.Rew: {}".format(np.std(episode_rew) / np.sqrt(len(episode_rew))), file=f)
     print("MeanT: {}".format(np.mean(episode_steps)), file=f)
