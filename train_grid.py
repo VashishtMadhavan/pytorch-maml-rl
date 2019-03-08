@@ -57,7 +57,7 @@ if __name__ == '__main__':
     parser.add_argument('--gamma', type=float, default=0.96)
     parser.add_argument('--tau', type=float, default=0.95, help='discount factor for GAE')
     parser.add_argument('--vf_coef', type=float, default=0.5, help='value function coeff')
-    parser.add_argument('--ent_coef', type=float, default=0.01, help='entropy bonus coeff')
+    parser.add_argument('--ent_coef', type=float, default=1.5, help='entropy bonus coeff')
     parser.add_argument('--batch-size', type=int, default=1000, help='num episodes for gradient est.')
     parser.add_argument('--train-iters', type=int, default=1000, help='training iterations')
 

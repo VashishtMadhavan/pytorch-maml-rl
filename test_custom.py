@@ -59,7 +59,7 @@ def evaluate(env, policy, device, test_eps=10, greedy=False, render=False, rando
             #obs_inp = np.concatenate((np.array(obs)[None], x_tile, y_tile), axis=-1).astype(np.float32)
             obs_inp = np.array(obs)[None]
             obs_tensor = torch.from_numpy(obs_inp).to(device=device)
-            action_dist, value_tensor, hx, cx = policy(obs_tensor, hx, cx, e_tensor)
+            action_dist, value_tensor, hx = policy(obs_tensor, hx, e_tensor)
 
             if greedy:
                 probs = action_dist.probs.detach().cpu().numpy()
