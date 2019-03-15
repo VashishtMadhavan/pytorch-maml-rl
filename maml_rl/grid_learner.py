@@ -23,13 +23,14 @@ class GridLearner(object):
     GRU Learner using A2C/PPO
     """
     def __init__(self, env_name, batch_size, num_workers, num_batches=1000, gamma=0.95, lr=0.01, 
-    	        tau=1.0, ent_coef=.01, vf_coef=0.5, lstm_size=50, clip_frac=0.2, device='cpu',
-                surr_epochs=3, surr_batches=4, max_grad_norm=0.5, D=1):
+                tau=1.0, ent_coef=.01, vf_coef=0.5, lstm_size=64, clip_frac=0.2, device='cpu',
+                surr_epochs=3, surr_batches=4, max_grad_norm=0.5, D=1, N=1):
         self.env_name = env_name
         self.vf_coef = vf_coef
         self.ent_coef = ent_coef
         self.gamma = gamma
         self.D = D
+        self.N = N
 
         # Sampler variables
         self.num_batches = num_batches
@@ -41,8 +42,8 @@ class GridLearner(object):
         self.num_actions = self.envs.action_space.n
 
         self.lstm_size = lstm_size
-        #self.policy = GRUPolicy(input_size=self.obs_shape[0], output_size=self.num_actions, lstm_size=self.lstm_size, D=self.D)
-        self.policy = FFPolicy(input_size=self.obs_shape[0], output_size=self.num_actions, D=self.D)
+        self.policy = GRUPolicy(input_size=self.obs_shape[0], output_size=self.num_actions, lstm_size=self.lstm_size, D=self.D, N=self.N)
+        #self.policy = FFPolicy(input_size=self.obs_shape[0], output_size=self.num_actions, D=self.D)
 
         # Optimization Variables
         self.lr = lr
@@ -64,8 +65,8 @@ class GridLearner(object):
         hx = torch.zeros(self.D, self.batch_size, self.lstm_size).to(device=self.device)
         
         for t in range(T):
-            #pi, v, hx = self.policy(episodes.observations[t], hx, episodes.embeds[t])
-            pi, v = self.policy(episodes.observations[t])
+            pi, v, hx = self.policy(episodes.observations[t], hx, episodes.embeds[t])
+            #pi, v = self.policy(episodes.observations[t])
             values.append(v)
             entropy.append(pi.entropy())
             if ratio:
@@ -159,8 +160,8 @@ class GridLearner(object):
         while (not all(dones)) or (not self.queue.empty()):
             with torch.no_grad():
                 obs_tensor = torch.from_numpy(observations).to(device=self.device)
-                #act_dist, values_tensor, hx = self.policy(obs_tensor, hx, embed_tensor)
-                act_dist, values_tensor = self.policy(obs_tensor)
+                act_dist, values_tensor, hx = self.policy(obs_tensor, hx, embed_tensor)
+                #act_dist, values_tensor = self.policy(obs_tensor)
                 act_tensor = act_dist.sample()
 
                 # cpu variables for logging
