@@ -14,7 +14,7 @@ def main(args):
 
     learner = GridLearner(env_name=args.env, batch_size=args.batch_size, ent_coef=args.ent_coef,
         num_workers=args.workers, num_batches=args.train_iters, gamma=args.gamma, lr=args.lr,
-        tau=args.tau, vf_coef=args.vf_coef, device=args.device, D=args.d)
+        tau=args.tau, vf_coef=args.vf_coef, device=args.device, D=args.d, N=args.n)
 
     logger.set_keys(['MeanReward:','Batch:','Tsteps:','TimePerBatch:'])
     batch = 0
@@ -53,11 +53,12 @@ if __name__ == '__main__':
     # General
     parser.add_argument('--env', type=str, default='GridGame-v0')
     parser.add_argument('--d', type=int, default=1)
+    parser.add_argument('--n', type=int, default=1)
     parser.add_argument('--lr', type=float, default=5e-4)
     parser.add_argument('--gamma', type=float, default=0.96)
     parser.add_argument('--tau', type=float, default=0.95, help='discount factor for GAE')
     parser.add_argument('--vf_coef', type=float, default=0.5, help='value function coeff')
-    parser.add_argument('--ent_coef', type=float, default=1.5, help='entropy bonus coeff')
+    parser.add_argument('--ent_coef', type=float, default=0.01, help='entropy bonus coeff')
     parser.add_argument('--batch-size', type=int, default=1000, help='num episodes for gradient est.')
     parser.add_argument('--train-iters', type=int, default=1000, help='training iterations')
 
