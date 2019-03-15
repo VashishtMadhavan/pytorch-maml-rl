@@ -15,7 +15,7 @@ def clear_path(map_x):
 
 def place_agents(map_x):
     post = []
-    for j in [2, 3]:
+    for j in [1.0, 2.0]:
         pos = np.array([y for y in np.argwhere(map_x == 0)])
         pos = pos[pos[:,0] != 1]
         #pos = pos[pos[:,0] == 1]
@@ -40,7 +40,7 @@ class GridGameEnv(gym.Env):
         self.N, self.M = self.map.shape
 
         self.action_space = spaces.Discrete(5) #nothing up down left right
-        self.observation_space = spaces.Box(low=0, high=255, shape=(len(self.map.flatten()), ))
+        self.observation_space = spaces.Box(low=0, high=255, shape=self.map.shape)
         self.num_actions = 5
         self.reward_mult = 10.0
         self.viewer = None
@@ -68,7 +68,7 @@ class GridGameEnv(gym.Env):
         map_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'map_empty.txt')
         self.map = np.loadtxt(map_file, dtype='i', delimiter=',')
         self.agent_pos, self.goal_pos = preprocess_map(self.map)
-        return self.map.flatten().astype(np.float32) / 3.0
+        return self.map.astype(np.float32) / 2.0
 
     def step(self, action):
         self.map[self.agent_pos[0], self.agent_pos[1]] = 0.
@@ -85,8 +85,8 @@ class GridGameEnv(gym.Env):
             self.agent_pos[1] = min(self.agent_pos[1] + 1, self.M - 1)
         if self.map[self.agent_pos[0], self.agent_pos[1]] == 1:
             self.agent_pos = pos
-        self.map[self.agent_pos[0], self.agent_pos[1]] = 2.
-        state = self.map.flatten().astype(np.float32) / 3.0
+        self.map[self.agent_pos[0], self.agent_pos[1]] = 1.0
+        state = self.map.astype(np.float32) / 2.0
         done = list(self.agent_pos) == list(self.goal_pos)
         rew = float(done) * self.reward_mult
         return state, rew, done, {}
