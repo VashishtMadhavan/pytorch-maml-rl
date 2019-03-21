@@ -42,7 +42,6 @@ class GridGameEnv(gym.Env):
         self.action_space = spaces.Discrete(5) #nothing up down left right
         self.observation_space = spaces.Box(low=0, high=255, shape=self.map.shape)
         self.num_actions = 5
-        self.reward_mult = 1.0
         self.viewer = None
 
     def seed(self, seed=None):
@@ -88,5 +87,5 @@ class GridGameEnv(gym.Env):
         self.map[self.agent_pos[0], self.agent_pos[1]] = 1.0
         state = self.map.astype(np.float32) / 2.0
         done = list(self.agent_pos) == list(self.goal_pos)
-        rew = float(done) * self.reward_mult
+        rew = float(done)
         return state, rew, done, {}

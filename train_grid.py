@@ -6,6 +6,7 @@ import time
 import os
 import json
 from maml_rl.grid_learner import GridLearner
+from torch.optim.lr_scheduler import LambdaLR
 from maml_rl.utils import gen_utils, torch_utils
 
 def main(args):
@@ -18,9 +19,11 @@ def main(args):
 
     logger.set_keys(['MeanReward:','Batch:','Tsteps:','TimePerBatch:'])
     batch = 0
+    scheduler = LambdaLR(learner.optimizer, lambda x: (1.0 - x / float(args.train_iters)))
 
     # Training Loop
     while batch < args.train_iters:
+        scheduler.step()
         tstart = time.time()
         episodes = learner.sample()
         learner.surrogate_step(episodes)
