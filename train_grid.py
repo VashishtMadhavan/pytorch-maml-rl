@@ -3,12 +3,12 @@ import gym
 import numpy as np
 import torch
 import time
+import os
 import json
 from maml_rl.grid_learner import GridLearner
 from maml_rl.utils import gen_utils, torch_utils
 
 def main(args):
-    # TODO: check if logger is necessary here
     logger = gen_utils.Logger(args.outdir)
     logger.save_config(args)
 
@@ -63,10 +63,12 @@ if __name__ == '__main__':
     parser.add_argument('--train-iters', type=int, default=1000, help='training iterations')
 
     # Miscellaneous
+    parser.add_argument('--gpu', typ=str, default='0')
     parser.add_argument('--outdir', type=str, default='grid_debug')
     parser.add_argument('--workers', type=int, default=100, help='num workers for traj sampling')
     args = parser.parse_args()
 
     # Device
+    os.environ['CUDA_VISIBLE_DEVICES'] = str(args.gpu)
     args.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     main(args)
