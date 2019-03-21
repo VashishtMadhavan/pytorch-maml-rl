@@ -23,7 +23,7 @@ class GridLearner(object):
     GRU Learner using A2C/PPO
     """
     def __init__(self, env_name, batch_size, num_workers, num_batches=1000, gamma=0.95, lr=0.01, 
-                tau=1.0, ent_coef=.01, vf_coef=0.5, lstm_size=64, clip_frac=0.2, device='cpu',
+                tau=1.0, ent_coef=.01, vf_coef=0.5, lstm_size=32, clip_frac=0.2, device='cpu',
                 surr_epochs=3, surr_batches=4, max_grad_norm=0.5, D=1, N=1):
         self.env_name = env_name
         self.vf_coef = vf_coef
@@ -49,7 +49,7 @@ class GridLearner(object):
         self.lr = lr
         self.tau = tau
         self.clip_frac = clip_frac
-        self.optimizer = optim.Adam(self.policy.parameters(), lr=self.lr, eps=1e-5)
+        self.optimizer = optim.Adam(self.policy.parameters(), lr=self.lr, eps=1e-4)
 
         # PPO variables
         self.surrogate_epochs = surr_epochs
@@ -62,7 +62,7 @@ class GridLearner(object):
     def _forward_policy(self, episodes, ratio=False):
         T = episodes.observations.size(0)
         values, log_probs, entropy = [], [], []
-        hx = torch.zeros(self.D, self.batch_size, self.lstm_size).to(device=self.device)
+        hx = torch.zeros(self.D, self.batch_size, self.lstm_size, 2, 2).to(device=self.device)
         
         for t in range(T):
             pi, v, hx = self.policy(episodes.observations[t], hx, episodes.embeds[t])
@@ -155,7 +155,7 @@ class GridLearner(object):
 
         embed_tensor = torch.zeros(self.num_workers, self.num_actions + 2).to(device=self.device)
         embed_tensor[:, 0] = 1.
-        hx = torch.zeros(self.D, self.num_workers, self.lstm_size).to(device=self.device)
+        hx = torch.zeros(self.D, self.num_workers, self.lstm_size, 2, 2).to(device=self.device)
 
         while (not all(dones)) or (not self.queue.empty()):
             with torch.no_grad():
@@ -177,7 +177,8 @@ class GridLearner(object):
 
             # Update hidden states
             dones_tensor = torch.from_numpy(dones.astype(np.float32)).to(device=self.device)
-            hx[:, dones_tensor == 1, :] = 0.
+            #hx[:, dones_tensor == 1, :] = 0.
+            hx[:, dones_tensor == 1, :, :, :] = 0.
             embed_tensor[dones_tensor == 1] = 0.
             embed_tensor[dones_tensor == 1, 0] = 1.
 
