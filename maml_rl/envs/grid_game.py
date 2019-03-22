@@ -18,7 +18,6 @@ def place_agents(map_x):
     for j in [1.0, 2.0]:
         pos = np.array([y for y in np.argwhere(map_x == 0)])
         pos = pos[pos[:,0] != 1]
-        #pos = pos[pos[:,0] == 1]
         choice = np.random.randint(pos.shape[0])
         x = pos[choice]
         map_x[x[0]][x[1]] = j
