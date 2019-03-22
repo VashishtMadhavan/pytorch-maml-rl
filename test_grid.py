@@ -24,7 +24,7 @@ def parse_args():
 
 def load_params(policy_path, env, device, lstm=False, D=1, N=1):
     if lstm:
-        policy = GRUPolicy(env.observation_space.shape[0], env.action_space.n, lstm_size=64, D=D, N=N)
+        policy = GRUPolicy(env.observation_space.shape[0], env.action_space.n, lstm_size=32, D=D, N=N)
     else:
         policy = FFPolicy(env.observation_space.shape[0], env.action_space.n, D=D)
     policy.load_state_dict(torch.load(policy_path, 
@@ -37,7 +37,7 @@ def evaluate(env, policy, device, test_eps=10, greedy=False, render=False, lstm=
     for t in tqdm(range(test_eps)):
         obs = env.reset(); done = False
         if lstm:
-            hx = torch.zeros(D, 1, 64).to(device=device)
+            hx = torch.zeros(D, 1, 32, 2, 2).to(device=device)
         e_tensor = torch.zeros(1, nA + 2).to(device=device)
         e_tensor[:, 0] = 1.
         R = 0; T = 0
