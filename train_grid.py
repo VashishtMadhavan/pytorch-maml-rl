@@ -56,6 +56,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Grid learning with LSTMs')
 
     # General
+    parser.add_argument('--hdfs', action='store_false')
     parser.add_argument('--env', type=str, default='GridGame-v0')
     parser.add_argument('--d', type=int, default=1)
     parser.add_argument('--n', type=int, default=1)

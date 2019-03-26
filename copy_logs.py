@@ -9,8 +9,8 @@ if not args.file:
 	raise NotImplementedError("Please list file")
 
 HDFS_DIR_PREFIX='file://'
-HDFS_DIR='/ailabs/vash/custom_game/'
-HDFS_LOCAL_DIR='/Users/vashishtmadhavan/Documents/Code/baselines_data/'
+HDFS_DIR='/ailabs/vash/grid_game/'
+HDFS_LOCAL_DIR='/Users/vashishtmadhavan/Documents/Code/gen_proj_data/'
 
 hdfs_paths = [x.rstrip() for x in open(args.file).readlines()]
 trunc_paths = [l.replace(HDFS_DIR, '') for l in hdfs_paths]
