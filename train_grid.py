@@ -47,6 +47,8 @@ def main(args):
     # Saving the final policy
     logger.save_policy(batch, learner.policy)
     learner.envs.close()
+    if args.hdfs:
+        gen_utils.hdfs_save('/ailabs/vash/grid_game/', args.outdir + '/')
 
 if __name__ == '__main__':
     import argparse
@@ -57,7 +59,7 @@ if __name__ == '__main__':
     parser.add_argument('--env', type=str, default='GridGame-v0')
     parser.add_argument('--d', type=int, default=1)
     parser.add_argument('--n', type=int, default=1)
-    parser.add_argument('--lr', type=float, default=4e-4)
+    parser.add_argument('--lr', type=float, default=1e-4)
     parser.add_argument('--gamma', type=float, default=0.96)
     parser.add_argument('--tau', type=float, default=0.96, help='discount factor for GAE')
     parser.add_argument('--vf_coef', type=float, default=0.5, help='value function coeff')

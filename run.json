@@ -1,0 +1,20 @@
+{
+  "strategy": "exhaustive",
+  "num_experiments": 10,
+  "params": {
+    "env": {
+      "type": "category",
+      "list": ["GridGame-v0"]
+    },
+    "d" : {
+      "type": "category",
+      "list": [1, 2, 3]
+    },
+    "n" : {
+      "type": "category",
+      "list": [1, 2, 3, 4, 5]
+    }
+  },
+  "job_name": "vash_grid_test_drc_d{d}_n{n}",
+  "cmdLine": "cd /home/work; python train_grid.py --env {env} --d {d} --n {n} --outdir grid_drc_n{n}_d{d}"
+}
