@@ -13,27 +13,33 @@ def clear_path(map_x):
     map_x[3, rr[1]] = 0.; map_x[3, rr[1] - 1] = 0.
     #map_x[5, rr[2]] = 0.; map_x[5, rr[2] - 1] = 0.
 
-def place_agents(map_x):
+def place_agents(map_x, setup):
     post = []
     for j in [1.0, 2.0]:
         pos = np.array([y for y in np.argwhere(map_x == 0)])
-        pos = pos[pos[:,0] != 1]
+        if setup == 0:
+            pos = pos[pos[:,0] != 1]
+        elif setup == 1:
+            pos = pos[pos[:, 0] == 1]
+        else:
+            pass
         choice = np.random.randint(pos.shape[0])
         x = pos[choice]
         map_x[x[0]][x[1]] = j
         post.append(x)
     return post[0], post[1]
 
-def preprocess_map(map_x):
+def preprocess_map(map_x, setup):
     clear_path(map_x)
-    return place_agents(map_x)
+    return place_agents(map_x, setup)
 
 class GridGameEnv(gym.Env):
-    def __init__(self, task={}):
+    def __init__(self, task={}, setup=0):
         self._task = task
+        self.setup = setup
         map_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'map_empty.txt')
         self.map = np.loadtxt(map_file, dtype='i', delimiter=',')
-        self.agent_pos, self.goal_pos = preprocess_map(self.map)
+        self.agent_pos, self.goal_pos = preprocess_map(self.map, self.setup)
         self.init_apos = np.array(self.agent_pos)
         self.init_gpos = np.array(self.goal_pos)
         self.N, self.M = self.map.shape
@@ -65,7 +71,7 @@ class GridGameEnv(gym.Env):
     def reset(self):
         map_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'map_empty.txt')
         self.map = np.loadtxt(map_file, dtype='i', delimiter=',')
-        self.agent_pos, self.goal_pos = preprocess_map(self.map)
+        self.agent_pos, self.goal_pos = preprocess_map(self.map, self.setup)
         return self.map.astype(np.float32) / 2.0
 
     def step(self, action):

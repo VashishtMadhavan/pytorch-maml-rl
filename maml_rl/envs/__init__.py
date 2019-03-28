@@ -57,8 +57,23 @@ register(
 # GridGame
 # ----------------------------------------
 register(
-    'GridGame-v0',
+    'GridGameTrain-v0',
     entry_point='maml_rl.envs.grid_game:GridGameEnv',
+    kwargs={'setup': 0, 'task': {}},
+    max_episode_steps=25
+)
+
+register(
+    'GridGameSmallTest-v0',
+    entry_point='maml_rl.envs.grid_game:GridGameEnv',
+    kwargs={'setup': 1, 'task': {}},
+    max_episode_steps=25
+)
+
+register(
+    'GridGameTest-v0',
+    entry_point='maml_rl.envs.grid_game:GridGameEnv',
+    kwargs={'setup': 2, 'task': {}},
     max_episode_steps=25
 )
 
