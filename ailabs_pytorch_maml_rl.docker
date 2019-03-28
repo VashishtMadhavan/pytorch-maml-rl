@@ -2,11 +2,11 @@
 #latest
 #.
 
-FROM opus-deep-learning:master-prod-2018_7_24_5_17_47
+FROM opus-deep-learning:master-prod-2019_3_28_13_34_57
 
 RUN /bin/bash -c "cd /home && \
     apt-get update && \
-    apt-get install -y tmux cmake python-opencv pkg-config && \
+    apt-get install -y tmux cmake python-opencv pkg-config python3-dev && \
     pip install virtualenv && \
     virtualenv -p python3 env --system-site-packages && \
     source /home/env/bin/activate && \
@@ -25,7 +25,6 @@ RUN /bin/bash -c "source /home/env/bin/activate && \
     git clone https://github.com/VashishtMadhavan/PyGame-Learning-Environment.git && \
     pip install -e '/home/work/PyGame-Learning-Environment' && \
     pip install /home/work/ailabs_util && \
-    pip install https://github.com/openai/baselines/archive/7139a66d333b94c2dafc4af35f6a8c7598361df6.zip && \
     git clone https://github.com/VashishtMadhavan/gym.git && \
     pip install -e '/home/work/gym'"
 
