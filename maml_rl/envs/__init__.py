@@ -1,12 +1,5 @@
 from gym.envs.registration import register
-# from .coinrun.coinrunenv import init_args_and_threads, CoinRunVecEnv
-# from .subproc_vec_env import VecFrameStack
 
-# def CoinRunEnv(game_type='standard', num_envs=4, frame_stack=1):
-#     init_args_and_threads()
-#     env = CoinRunVecEnv(game_type=game_type, num_envs=num_envs)
-#     env = VecFrameStack(env, frame_stack)
-#     return env
 
 # Bandit
 # ----------------------------------------
