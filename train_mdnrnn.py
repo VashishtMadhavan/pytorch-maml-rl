@@ -17,6 +17,24 @@ from tqdm import tqdm
 from train_vae import BetaVAE
 from torch.distributions.normal import Normal
 
+class LinearSchedule(object):
+	def __init__(self, schedule_timesteps, final_p, initial_p=1.0):
+		self.schedule_timesteps = schedule_timesteps
+		self.final_p = final_p
+		self.initial_p = initial_p
+
+	def value(self, t):
+		fraction  = min(float(t) / self.schedule_timesteps, 1.0)
+		return self.initial_p + fraction * (self.final_p - self.initial_p)
+
+class ConstantSchedule(object):
+	def __init__(self, schedule_timesteps, p=1.0):
+		self.schedule_timesteps = schedule_timesteps
+		self.p = p
+
+	def value(self, t):
+		return self.p
+
 def one_hot(action, num_actions):
 	x = np.zeros((len(action), num_actions))
 	x[np.arange(len(action)), action] = 1.
@@ -27,76 +45,103 @@ def collect_batch_episodes(env, test_eps=100):
 	for _ in tqdm(range(test_eps)):
 		obs = env.reset(); done = False
 		ep_obs = []; ep_dict = {}; ep_rew = []; ep_done = []; ep_act = []
-		ep_obs.append(obs)
+		ep_obs.append(obs.flatten())
 		while not done:
-			act = env.action_space.sample()
+			act = np.random.randint(env.action_space.n)
 			obs, rew, done, info = env.step(act)
-			ep_obs.append(obs); ep_rew.append(rew); ep_done.append(float(done)); ep_act.append(act)
+			ep_obs.append(obs.flatten()); ep_rew.append(rew); ep_done.append(float(done)); ep_act.append(act)
 		ep_obs = np.array(ep_obs, copy=False)
 		ep_rew = np.array(ep_rew, copy=False)
 		ep_done = np.array(ep_done, copy=False)
 		ep_act = np.array(ep_act, copy=False)
 
-		ep_dict['obs'] = torch.from_numpy(ep_obs)
+		prev_obs = np.vstack([np.zeros(ep_obs[0].shape)[None], ep_obs[:-2]])
+		prev_act = np.insert(ep_act[:-1], 0, 0)
+
+		ep_dict['prev_obs'] = torch.from_numpy(prev_obs).float()
+		ep_dict['prev_act'] = torch.from_numpy(one_hot(prev_act, env.action_space.n)).float()
+		ep_dict['obs'] = torch.from_numpy(ep_obs[:-1])
+		ep_dict['next_obs'] = torch.from_numpy(ep_obs[1:])
 		ep_dict['done'] = torch.from_numpy(ep_done).float()
 		ep_dict['rew'] = torch.from_numpy(ep_rew).float()
 		ep_dict['act'] = torch.from_numpy(one_hot(ep_act, env.action_space.n)).float()
 		episodes.append(ep_dict)
 	return episodes
 
-class MDNRNN(nn.Module):
-	def __init__(self, input_size, action_dim, lstm_size, K=2):
-		super(MDNRNN, self).__init__()
+class FFModel(nn.Module):
+	def __init__(self, input_size, action_dim, hidden_size, K=2):
+		super(FFModel, self).__init__()
 		self.input_size = input_size
 		self.action_dim = action_dim
-		self.lstm_size = lstm_size
+		self.hidden_size = hidden_size
 		self.K = K # number of gaussians in GMM
 
-		self.gru = nn.GRUCell(self.input_size + self.action_dim, self.lstm_size)
-		self.linear = nn.Linear(self.lstm_size, self.input_size + 2)
+		self.fc = nn.Linear(self.input_size + self.action_dim, self.hidden_size)
+		self.pred_out = nn.Linear(self.hidden_size, self.input_size)
+		self.rew_out = nn.Linear(self.hidden_size, 1) # predict either reward of 1 or 0
 
-	def forward(self, x, a, hx):
+	def forward(self, x, a):
 		out = torch.cat((x, a), dim=-1)
-		h_out = self.gru(out, hx)
-		out = self.linear(h_out)
-		preds = out[:, :-2]; rs = out[:, -2]; ds = out[:, -1]
-		return preds, rs, ds, h_out
+		out = F.relu(self.fc(out))
+		return self.pred_out(out), self.rew_out(out)
 
 def get_batch(data, batch_size):
 	random_idx = np.random.choice(np.arange(len(data)), size=batch_size, replace=False)
 	data_dicts = [data[r] for r in random_idx]
-	data_batch = [d['obs'] for d in data_dicts]
-	act_batch = [d['act'] for d in data_dicts]
-	rew_batch = [d['rew'] for d in data_dicts]
-	done_batch = [d['done'] for d in data_dicts]
-	return data_batch, act_batch, rew_batch, done_batch
 
-def get_loss(data, act, rew, done, model):
-	total_loss = 0; obs_shape = data[0][0].shape
-	for bs in range(len(data)):
-		hx = torch.zeros(1, model.lstm_size)
-		for t in range(data[bs].size(0) - 1):
-			pred, r, d, hx = model(data[bs][t].unsqueeze(0), act[bs][t].unsqueeze(0), hx)
+	prev_obs_batch = torch.cat([d['prev_obs'] for d in data_dicts], dim=0)
+	prev_act_batch = torch.cat([d['prev_act'] for d in data_dicts], dim=0)
+	obs_batch = torch.cat([d['obs'] for d in data_dicts], dim=0)
+	obs_tp1_batch = torch.cat([d['next_obs'] for d in data_dicts], dim=0)
+	act_batch = torch.cat([d['act'] for d in data_dicts], dim=0)
+	rew_batch = torch.cat([d['rew'] for d in data_dicts], dim=0)
+	done_batch = torch.cat([d['done'] for d in data_dicts], dim=0)
+	return obs_batch, act_batch, obs_tp1_batch, rew_batch, done_batch, prev_obs_batch, prev_act_batch
 
-			# computing losses
-			pred_loss = F.mse_loss(pred, data[bs][t+1].unsqueeze(0))
-			done_loss = F.binary_cross_entropy_with_logits(d, done[bs][t].unsqueeze(0))
-			rew_loss = F.mse_loss(r, rew[bs][t].unsqueeze(0))
-			total_loss += (pred_loss + done_loss + rew_loss) / (obs_shape[0] + 2)
-	return total_loss / len(data)
+def get_ff_loss(obs, act, obs_tp1, rew, done, prev_obs, prev_act, model, epoch, beta_schedule):
+	with torch.no_grad():
+		prev_obs_pred, _ = model(prev_obs, prev_act)
+	pred_frac = beta_schedule.value(epoch)
+	mix_batch_size = int(pred_frac * len(prev_obs_pred))
+
+	if mix_batch_size > 0:
+		M = np.random.choice(np.arange(1, len(prev_obs_pred)), size=mix_batch_size, replace=False)
+		N = np.random.choice(np.arange(len(obs)), size=len(obs) - mix_batch_size, replace=False)
+
+		pred, r_pred = model(obs[N], act[N])
+		pred_prime, r_pred_prime = model(prev_obs_pred[M], act[M])
+
+		tot_pred = torch.cat((pred, pred_prime), dim=0)
+		tot_r_pred = torch.cat((r_pred, r_pred_prime), dim=0)
+
+		tot_target = torch.cat((obs_tp1[N], obs_tp1[M]), dim=0)
+		tot_r_target = torch.cat((rew[N], rew[M]), dim=0)
+
+		pred_loss = F.smooth_l1_loss(tot_pred, tot_target)
+		rew_loss = F.binary_cross_entropy_with_logits(tot_r_pred.squeeze(), tot_r_target)
+	else:
+		pred, r_pred = model(obs, act)
+		# computing losses
+		pred_loss = F.smooth_l1_loss(pred, obs_tp1)
+		rew_loss = F.binary_cross_entropy_with_logits(r_pred.squeeze(), rew)
+	return pred_loss + rew_loss
+
 
 def main(args):
-	env = gym.make('GridGame-v0')
+	env = gym.make('GridGameTrain-v0')
 	obs_shape = env.observation_space.shape
 	act_dim = env.action_space.n
-	device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-	mdn = MDNRNN(input_size=obs_shape[0], action_dim=act_dim, lstm_size=args.lstm_size, K=args.K)
+	model = FFModel(input_size=obs_shape[0] * obs_shape[1], action_dim=act_dim, hidden_size=args.lstm_size)
+	loss_fn = get_ff_loss
+
 	data = collect_batch_episodes(env, test_eps=args.T) # (T, L, hidden)
-	optimizer = torch.optim.Adam(mdn.parameters(), lr=args.lr)
+	optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.l2_pen)
 
 	random.shuffle(data)
 	train_data, test_data = data[:int(0.8 * args.T)], data[int(0.8 * args.T):]
+	beta_schedule = LinearSchedule(schedule_timesteps=args.epochs, final_p=args.beta, initial_p=0.0)
+	test_beta_schedule = ConstantSchedule(schedule_timesteps=args.epochs, p=0.0)
 
 	# creating output dir
 	if not os.path.exists(args.outdir):
@@ -104,33 +149,36 @@ def main(args):
 
 	for ep in range(args.epochs):
 		# Training
-		mdn.train()
+		model.train()
 		num_batches = len(train_data) // args.batch_size
+		avg_train_loss = []
 		for idx in tqdm(range(num_batches)):
-			data_batch, act_batch, rew_batch, done_batch = get_batch(train_data, args.batch_size)
+			obs_batch, act_batch, obs_tp1_batch, rew_batch, done_batch, prev_obs_batch, prev_act_batch = get_batch(train_data, args.batch_size)
 			optimizer.zero_grad()
-			ave_loss = get_loss(data_batch, act_batch, rew_batch, done_batch, mdn)
-			ave_loss.backward()
+			loss = loss_fn(obs_batch, act_batch, obs_tp1_batch, rew_batch, done_batch, prev_obs_batch, prev_act_batch, model, ep, beta_schedule=beta_schedule)
+			loss.backward()
+			avg_train_loss.append(loss.item())
 			optimizer.step()
 
-		mdn.eval()
-		test_data_batch, test_act_batch, test_rew_batch, test_done_batch = get_batch(test_data, 100)
+		model.eval()
+		t_obs_batch, t_act_batch, t_obs_tp1_batch, t_rew_batch, t_done_batch, t_prev_obs_batch, t_prev_act_batch = get_batch(test_data, 1000)
 		with torch.no_grad():
-			avg_t_loss = get_loss(test_data_batch, test_act_batch, test_rew_batch, test_done_batch, mdn)
-		print('====> Epoch: {} TestLoss: {:.4f}'.format(ep, avg_t_loss.item()))
+			avg_t_loss = loss_fn(t_obs_batch, t_act_batch, t_obs_tp1_batch, t_rew_batch, t_done_batch, t_prev_obs_batch, t_prev_act_batch, model, ep, beta_schedule=test_beta_schedule)
+		print('====> Epoch: {} TrainLoss: {:.4f} TestLoss: {:.4f}'.format(ep, np.mean(avg_train_loss), avg_t_loss.item()))
 
 	with open(os.path.join(args.outdir, 'final.pt'), 'wb') as f:
-		torch.save(mdn.state_dict(), f)
+		torch.save(model.state_dict(), f)
 
 
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser()
-	parser.add_argument('--lstm_size', type=int, default=32, help='lstm hidden size')
+	parser.add_argument('--lstm_size', type=int, default=256, help='lstm hidden size')
 	parser.add_argument('--batch_size', type=int, default=32, help='batch_size')
-	parser.add_argument('--K', type=int, default=5, help='number of gaussians in GMM')
-	parser.add_argument('--T', type=int, default=10000, help='number of rollouts to collect')
+	parser.add_argument('--T', type=int, default=20000, help='number of rollouts to collect')
 	parser.add_argument('--outdir', type=str, default='mdn_debug/', help='where to save results')
-	parser.add_argument('--lr', type=float, default=1e-4, help='learning rate')
-	parser.add_argument('--epochs', type=int, default=10, help='number of training epochs')
+	parser.add_argument('--lr', type=float, default=1e-3, help='learning rate')
+	parser.add_argument('--l2_pen', type=float, default=1e-9, help='l2 regularization penalty')
+	parser.add_argument('--beta', type=float, default=0.5, help='mixing coefficient for data')
+	parser.add_argument('--epochs', type=int, default=200, help='number of training epochs')
 	args = parser.parse_args()
 	main(args)
