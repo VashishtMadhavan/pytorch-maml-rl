@@ -3,11 +3,12 @@ import gym
 import argparse
 import os
 import numpy as np
+from tqdm import tqdm
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from train_mdrnn import FFModel, one_hot
+from train_mdnrnn import FFModel, one_hot
 
 class Planner:
 	def __init__(self, model, k, n):
@@ -16,21 +17,20 @@ class Planner:
 		self.n = n
 
 	def get_action(self, obs):
-		best_traj = None; best_traj_rew = -1.0
-		for n in range(self.n):
-			actions = np.random.randint(0, self.model.action_dim, size=self.k)
-			act_tens = torch.from_numpy(one_hot(actions, self.model.action_dim)).float()
-			obs_tens = torch.from_numpy(obs.flatten()[None])
-			rew = 0.
+		obs_input = np.repeat(obs.flatten()[None], self.n, axis=0) # [N, obs_dim]
+		actions = np.random.randint(0, self.model.action_dim, size=(self.n, self.k))
+		actions_one_hot = np.array([one_hot(a, self.model.action_dim) for a in actions])
 
-			with torch.no_grad():
-				for i in range(len(actions)):
-					obs_tens, r, d = model(obs_tens, act)
-					rew += r.numpy()
+		act_tens = torch.from_numpy(actions_one_hot).float()
+		obs_tens = torch.from_numpy(obs_input)
+		rew = np.zeros(self.n)
 
-			if rew >= best_traj_rew:
-				best_traj = actions
-		return actions[0]
+		with torch.no_grad():
+			for t in range(actions.shape[1]):
+				obs_tens, r = self.model(obs_tens, act_tens[:, t, :])
+				rew += np.round(F.sigmoid(r).numpy().squeeze())
+		best_idx = np.argmax(rew)
+		return actions[best_idx][0]
 
 def main(args):
 	env = gym.make(args.env)
@@ -45,8 +45,8 @@ def main(args):
 	planner = Planner(model, k=args.k, n=args.n)
 	tot_R = []; tot_T = []
 
-	for t in range(args.test_eps):
-		obs = env.reset() done = False
+	for t in tqdm(range(args.test_eps)):
+		obs = env.reset(); done = False
 		ep_R = 0.; ep_T = 0
 		while not done:
 			action = planner.get_action(obs)
@@ -57,15 +57,16 @@ def main(args):
 		tot_R.append(ep_R)
 
 	print("MeanEpRew: ", np.mean(tot_R))
+	print("StdMeanRew: ", np.std(tot_R) / np.sqrt(len(tot_R)))
 	print("MeanEpSteps: ", np.mean(tot_T))
 
 
 def parse_args():
 	parser = argparse.ArgumentParser()
-	parser.add_argument('--env', type=str, default='GridGame-v0')
-	parser.add_argument('--test_eps', type=int, default=10)
-	parser.add_argument('--k', type=int, default=10, help='planning depth')
-	parser.add_argument('--n', type=int, default=100, help='planning trajectories')
+	parser.add_argument('--env', type=str, default='GridGameTrain-v0')
+	parser.add_argument('--test_eps', type=int, default=1000)
+	parser.add_argument('--k', type=int, default=5, help='planning depth')
+	parser.add_argument('--n', type=int, default=500, help='planning trajectories')
 	parser.add_argument('--model_file', type=str)
 	return parser.parse_args()
 

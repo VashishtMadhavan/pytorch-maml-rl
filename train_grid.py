@@ -57,7 +57,7 @@ if __name__ == '__main__':
 
     # General
     parser.add_argument('--hdfs', action='store_false')
-    parser.add_argument('--env', type=str, default='GridGame-v0')
+    parser.add_argument('--env', type=str, default='GridGameTrain-v0')
     parser.add_argument('--d', type=int, default=1)
     parser.add_argument('--n', type=int, default=1)
     parser.add_argument('--lr', type=float, default=1e-4)
