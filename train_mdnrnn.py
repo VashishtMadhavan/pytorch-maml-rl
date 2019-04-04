@@ -104,10 +104,10 @@ class ConvModel(nn.Module):
 		self.conv1 = nn.Conv2d(1, hidden_size, kernel_size=3, stride=1)
 		self.conv2 = nn.Conv2d(hidden_size, hidden_size, kernel_size=3, stride=1)
 		self.fc = nn.Linear(hidden_size + action_dim, 32)
-
-		# TODO: may want to make state prediction grid
-		self.pred_out = nn.Linear(32, self.input_size)
 		self.rew_out = nn.Linear(32, 1)
+
+		self.deconv1 = nn.ConvTranspose2d(32, hidden_size, kernel_size=3, stride=1)
+		self.deconv2 = nn.ConvTranspose2d(hidden_size, 1, kernel_size=3, stride=1)
 
 	def forward(self, x, a):
 		out = x.unsqueeze(1)
@@ -116,7 +116,12 @@ class ConvModel(nn.Module):
 		out = out.view(out.size(0), -1)
 		out = torch.cat((out, a), dim=-1)
 		out = F.relu(self.fc(out))
-		return self.pred_out(out), self.rew_out(out)
+		rew_pred = self.rew_out(out)
+
+		out = out.unsqueeze(-1).unsqueeze(-1)
+		out = F.relu(self.deconv1(out))
+		pred = self.deconv2(out)
+		return pred.squeeze(), rew_pred
 
 def get_batch(data, batch_size, device=torch.device('cpu')):
 	random_idx = np.random.choice(np.arange(len(data)), size=batch_size, replace=False)
@@ -156,7 +161,7 @@ def get_ff_loss(obs, act, obs_tp1, rew, done, prev_obs, prev_act, model, epoch, 
 	else:
 		pred, r_pred = model(obs, act)
 		# computing losses
-		pred_loss = F.smooth_l1_loss(pred, obs_tp1.view(obs_tp1.size(0), -1))
+		pred_loss = F.smooth_l1_loss(pred, obs_tp1)
 		rew_loss = F.binary_cross_entropy_with_logits(r_pred.squeeze(), rew)
 	return pred_loss + rew_loss
 
@@ -180,7 +185,7 @@ def main(args):
 		data = collect_batch_episodes(env, test_eps=args.T, conv=args.conv) # (T, L, hidden)
 		pickle.dump(data, open('data.pkl', 'wb'))
 	else:
-		data = pickle.load(open('/data.pkl', 'rb'))
+		data = pickle.load(open('data.pkl', 'rb'))
 
 	optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.l2_pen)
 
