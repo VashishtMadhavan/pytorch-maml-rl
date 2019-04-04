@@ -16,9 +16,6 @@ RUN wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -
     /bin/bash --login -c "conda activate base && conda install -y python=3.6"
 ENV PATH=/opt/conda/bin/:${PATH}
 
-COPY ./maml_rl /home/work/maml_rl
-COPY ./*py /home/work/
-
 # Install requirements
 RUN /bin/bash --login -c "conda activate base && \
     cd /home/work/ && \
@@ -31,6 +28,11 @@ RUN /bin/bash --login -c "conda activate base && \
     pip install -e '/home/work/gym'"
 
 ENV PATH=${PATH}:/usr/local/cuda/bin/
+
+COPY ./maml_rl /home/work/maml_rl
+COPY ./*py /home/work/
+
+
 
 ENV LC_ALL C.UTF-8
 ENV LANG C.UTF-8
