@@ -12,6 +12,7 @@ import random
 import json
 import argparse
 import maml_rl.envs
+import pickle
 import os
 from tqdm import tqdm
 from train_vae import BetaVAE
@@ -40,16 +41,23 @@ def one_hot(action, num_actions):
 	x[np.arange(len(action)), action] = 1.
 	return x
 
-def collect_batch_episodes(env, test_eps=100):
+def collect_batch_episodes(env, test_eps=100, conv=False):
 	episodes = []
 	for _ in tqdm(range(test_eps)):
 		obs = env.reset(); done = False
 		ep_obs = []; ep_dict = {}; ep_rew = []; ep_done = []; ep_act = []
-		ep_obs.append(obs.flatten())
+		if not conv:
+			ep_obs.append(obs.flatten())
+		else:
+			ep_obs.append(obs)
 		while not done:
 			act = np.random.randint(env.action_space.n)
 			obs, rew, done, info = env.step(act)
-			ep_obs.append(obs.flatten()); ep_rew.append(rew); ep_done.append(float(done)); ep_act.append(act)
+			if conv:
+				ep_obs.append(obs)
+			else:
+				ep_obs.append(obs.flatten())
+			ep_rew.append(rew); ep_done.append(float(done)); ep_act.append(act)
 		ep_obs = np.array(ep_obs, copy=False)
 		ep_rew = np.array(ep_rew, copy=False)
 		ep_done = np.array(ep_done, copy=False)
@@ -85,7 +93,32 @@ class FFModel(nn.Module):
 		out = F.relu(self.fc(out))
 		return self.pred_out(out), self.rew_out(out)
 
-def get_batch(data, batch_size):
+class ConvModel(nn.Module):
+	def __init__(self, input_size, action_dim, hidden_size, K=2):
+		super(ConvModel, self).__init__()
+		self.input_size = input_size
+		self.action_dim = action_dim
+		self.hidden_size = hidden_size
+		self.K = K
+
+		self.conv1 = nn.Conv2d(1, hidden_size, kernel_size=3, stride=1)
+		self.conv2 = nn.Conv2d(hidden_size, hidden_size, kernel_size=3, stride=1)
+		self.fc = nn.Linear(hidden_size + action_dim, 32)
+
+		# TODO: may want to make state prediction grid
+		self.pred_out = nn.Linear(32, self.input_size)
+		self.rew_out = nn.Linear(32, 1)
+
+	def forward(self, x, a):
+		out = x.unsqueeze(1)
+		out = F.relu(self.conv1(out))
+		out = F.relu(self.conv2(out))
+		out = out.view(out.size(0), -1)
+		out = torch.cat((out, a), dim=-1)
+		out = F.relu(self.fc(out))
+		return self.pred_out(out), self.rew_out(out)
+
+def get_batch(data, batch_size, device=torch.device('cpu')):
 	random_idx = np.random.choice(np.arange(len(data)), size=batch_size, replace=False)
 	data_dicts = [data[r] for r in random_idx]
 
@@ -96,7 +129,8 @@ def get_batch(data, batch_size):
 	act_batch = torch.cat([d['act'] for d in data_dicts], dim=0)
 	rew_batch = torch.cat([d['rew'] for d in data_dicts], dim=0)
 	done_batch = torch.cat([d['done'] for d in data_dicts], dim=0)
-	return obs_batch, act_batch, obs_tp1_batch, rew_batch, done_batch, prev_obs_batch, prev_act_batch
+	return obs_batch.to(device), act_batch.to(device), obs_tp1_batch.to(device), \
+		rew_batch.to(device), done_batch.to(device), prev_obs_batch.to(device), prev_act_batch.to(device)
 
 def get_ff_loss(obs, act, obs_tp1, rew, done, prev_obs, prev_act, model, epoch, beta_schedule):
 	with torch.no_grad():
@@ -122,7 +156,7 @@ def get_ff_loss(obs, act, obs_tp1, rew, done, prev_obs, prev_act, model, epoch, 
 	else:
 		pred, r_pred = model(obs, act)
 		# computing losses
-		pred_loss = F.smooth_l1_loss(pred, obs_tp1)
+		pred_loss = F.smooth_l1_loss(pred, obs_tp1.view(obs_tp1.size(0), -1))
 		rew_loss = F.binary_cross_entropy_with_logits(r_pred.squeeze(), rew)
 	return pred_loss + rew_loss
 
@@ -131,11 +165,23 @@ def main(args):
 	env = gym.make('GridGameTrain-v0')
 	obs_shape = env.observation_space.shape
 	act_dim = env.action_space.n
+	# creating output dir
+	if not os.path.exists(args.outdir):
+		os.makedirs(args.outdir + '/', exist_ok=True)
 
-	model = FFModel(input_size=obs_shape[0] * obs_shape[1], action_dim=act_dim, hidden_size=args.lstm_size)
+	if not args.conv:
+		model = FFModel(input_size=obs_shape[0] * obs_shape[1], action_dim=act_dim, hidden_size=args.hidden_size)
+	else:
+		model = ConvModel(input_size=obs_shape[0] * obs_shape[1], action_dim=act_dim, hidden_size=args.hidden_size)
+	model.to(args.device)
 	loss_fn = get_ff_loss
 
-	data = collect_batch_episodes(env, test_eps=args.T) # (T, L, hidden)
+	if not os.path.exists('data.pkl'):
+		data = collect_batch_episodes(env, test_eps=args.T, conv=args.conv) # (T, L, hidden)
+		pickle.dump(data, open('data.pkl', 'wb'))
+	else:
+		data = pickle.load(open('/data.pkl', 'rb'))
+
 	optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.l2_pen)
 
 	random.shuffle(data)
@@ -143,17 +189,13 @@ def main(args):
 	beta_schedule = LinearSchedule(schedule_timesteps=args.epochs, final_p=args.beta, initial_p=0.0)
 	test_beta_schedule = ConstantSchedule(schedule_timesteps=args.epochs, p=0.0)
 
-	# creating output dir
-	if not os.path.exists(args.outdir):
-		os.makedirs(args.outdir + '/', exist_ok=True)
-
 	for ep in range(args.epochs):
 		# Training
 		model.train()
 		num_batches = len(train_data) // args.batch_size
 		avg_train_loss = []
 		for idx in tqdm(range(num_batches)):
-			obs_batch, act_batch, obs_tp1_batch, rew_batch, done_batch, prev_obs_batch, prev_act_batch = get_batch(train_data, args.batch_size)
+			obs_batch, act_batch, obs_tp1_batch, rew_batch, done_batch, prev_obs_batch, prev_act_batch = get_batch(train_data, args.batch_size, device=args.device)
 			optimizer.zero_grad()
 			loss = loss_fn(obs_batch, act_batch, obs_tp1_batch, rew_batch, done_batch, prev_obs_batch, prev_act_batch, model, ep, beta_schedule=beta_schedule)
 			loss.backward()
@@ -161,7 +203,7 @@ def main(args):
 			optimizer.step()
 
 		model.eval()
-		t_obs_batch, t_act_batch, t_obs_tp1_batch, t_rew_batch, t_done_batch, t_prev_obs_batch, t_prev_act_batch = get_batch(test_data, 1000)
+		t_obs_batch, t_act_batch, t_obs_tp1_batch, t_rew_batch, t_done_batch, t_prev_obs_batch, t_prev_act_batch = get_batch(test_data, 1000, device=args.device)
 		with torch.no_grad():
 			avg_t_loss = loss_fn(t_obs_batch, t_act_batch, t_obs_tp1_batch, t_rew_batch, t_done_batch, t_prev_obs_batch, t_prev_act_batch, model, ep, beta_schedule=test_beta_schedule)
 		print('====> Epoch: {} TrainLoss: {:.4f} TestLoss: {:.4f}'.format(ep, np.mean(avg_train_loss), avg_t_loss.item()))
@@ -172,13 +214,18 @@ def main(args):
 
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser()
-	parser.add_argument('--lstm_size', type=int, default=256, help='lstm hidden size')
+	parser.add_argument('--conv', action='store_true')
+	parser.add_argument('--gpu', type=int, default=0, help='which gpu to use')
+	parser.add_argument('--hidden_size', type=int, default=16, help='hidden size for layers')
 	parser.add_argument('--batch_size', type=int, default=32, help='batch_size')
 	parser.add_argument('--T', type=int, default=20000, help='number of rollouts to collect')
 	parser.add_argument('--outdir', type=str, default='mdn_debug/', help='where to save results')
 	parser.add_argument('--lr', type=float, default=1e-3, help='learning rate')
 	parser.add_argument('--l2_pen', type=float, default=1e-9, help='l2 regularization penalty')
-	parser.add_argument('--beta', type=float, default=0.5, help='mixing coefficient for data')
+	parser.add_argument('--beta', type=float, default=0.0, help='mixing coefficient for data')
 	parser.add_argument('--epochs', type=int, default=200, help='number of training epochs')
 	args = parser.parse_args()
+
+	os.environ['CUDA_VISIBLE_DEVICES'] = str(args.gpu)
+	args.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 	main(args)
