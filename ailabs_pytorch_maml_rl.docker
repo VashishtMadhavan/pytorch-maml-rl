@@ -2,31 +2,35 @@
 #latest
 #.
 
-FROM opus-deep-learning:master-prod-2019_3_28_13_34_57
+FROM opus-gpu-base:master-prod-2019_3_27_17_4_26
 
-RUN /bin/bash -c "cd /home && \
-    apt-get update && \
-    apt-get install -y tmux cmake python-opencv pkg-config python3-dev && \
-    pip install virtualenv && \
-    virtualenv -p python3 env --system-site-packages && \
-    source /home/env/bin/activate && \
-    pip install --upgrade pip && \
-    pip install click redis PyYAML cloudpickle cassandra-driver scipy opencv-python pygame setproctitle && \
-    rm -rf /var/lib/apt/lists/*"
+RUN /bin/bash -c "apt-get update && \
+    apt-get install -y tmux cmake git"
 
-RUN /bin/bash -c "mkdir /home/work"
-COPY ./ailabs_util /home/work/ailabs_util
+RUN wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/anaconda.sh && \
+    /bin/bash ~/anaconda.sh -b -p /opt/conda && \
+    rm ~/anaconda.sh && \
+    ln -s /opt/conda/etc/profile.d/conda.sh /etc/profile.d/conda.sh && \
+    echo ". /opt/conda/etc/profile.d/conda.sh" >> ~/.bashrc && \
+    echo "export LD_LIBRARY_PATH=/usr/local/nvidia/lib64/" >> ~/.bashrc && \
+    /bin/bash --login -c "conda activate base && conda install -y python=3.6"
+ENV PATH=/opt/conda/bin/:${PATH}
+
 COPY ./maml_rl /home/work/maml_rl
 COPY ./*py /home/work/
 
 # Install requirements
-RUN /bin/bash -c "source /home/env/bin/activate && \
-    cd /home/work && \
+RUN /bin/bash --login -c "conda activate base && \
+    cd /home/work/ && \
+    pip install pygame cloudpickle && \
+    pip install torch && \
+    pip install torchvision && \
     git clone https://github.com/VashishtMadhavan/PyGame-Learning-Environment.git && \
     pip install -e '/home/work/PyGame-Learning-Environment' && \
-    pip install /home/work/ailabs_util && \
     git clone https://github.com/VashishtMadhavan/gym.git && \
     pip install -e '/home/work/gym'"
+
+ENV PATH=${PATH}:/usr/local/cuda/bin/
 
 ENV LC_ALL C.UTF-8
 ENV LANG C.UTF-8
