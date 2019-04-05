@@ -11,7 +11,7 @@ from maml_rl.policies import FFPolicy, GRUPolicy
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--env", type=str, default='GridGame-v0')
+    parser.add_argument("--env", type=str, default='GridGameTrain-v0')
     parser.add_argument("--test-eps", type=int, default=1000)
     parser.add_argument("--checkpoint", type=str)
     parser.add_argument("--d", type=int, default=1)

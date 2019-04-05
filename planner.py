@@ -11,7 +11,7 @@ import torch.nn.functional as F
 from train_mdnrnn import FFModel, ConvModel, one_hot
 
 class Planner:
-	def __init__(self, model, k, n):
+	def __init__(self, model, k, n, conv=False):
 		self.model = model
 		self.k = k
 		self.n = n
@@ -19,7 +19,7 @@ class Planner:
 
 	def get_action(self, obs, device=torch.device('cpu')):
 		if self.conv:
-			obs_input = np.repeat(obs, self.n, axis=0)
+			obs_input = np.repeat(obs[None], self.n, axis=0)
 		else:
 			obs_input = np.repeat(obs.flatten()[None], self.n, axis=0) # [N, obs_dim]
 		actions = np.random.randint(0, self.model.action_dim, size=(self.n, self.k))
@@ -32,7 +32,7 @@ class Planner:
 		with torch.no_grad():
 			for t in range(actions.shape[1]):
 				obs_tens, r = self.model(obs_tens, act_tens[:, t, :])
-				rew += np.round(F.sigmoid(r).numpy().squeeze())
+				rew += np.round(torch.sigmoid(r).cpu().numpy().squeeze())
 		best_idx = np.argmax(rew)
 		return actions[best_idx][0]
 
@@ -45,9 +45,10 @@ def main(args):
 		model = ConvModel(input_size=obs_shape[0] * obs_shape[1], action_dim=act_dim, hidden_size=args.hidden_size)
 	else:
 		model = FFModel(input_size=obs_shape[0] * obs_shape[1], action_dim=act_dim, hidden_size=args.hidden_size)
-	model.to(device)
+	model.to(args.device)
+
 	model.load_state_dict(torch.load(args.model_file, 
-    	map_location=device if device == 'cpu' else None))
+		map_location=args.device.type if args.device.type == 'cpu' else None))
 
 	planner = Planner(model, k=args.k, n=args.n, conv=args.conv)
 	tot_R = []; tot_T = []
@@ -80,9 +81,8 @@ def parse_args():
 	parser.add_argument('--model_file', type=str)
 	return parser.parse_args()
 
-	os.environ['CUDA_VISIBLE_DEVICES'] = str(args.gpu)
-    args.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
 if __name__=="__main__":
 	args = parse_args()
+	os.environ['CUDA_VISIBLE_DEVICES'] = str(args.gpu)
+	args.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 	main(args)
