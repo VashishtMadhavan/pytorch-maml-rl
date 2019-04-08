@@ -7,12 +7,6 @@ import os
 import random
 import sys
 
-def clear_path(map_x):
-    rr = np.random.randint(1, 5, size=3)
-    map_x[1, rr[0]] = 0.; map_x[1, rr[0] - 1] = 0.
-    map_x[3, rr[1]] = 0.; map_x[3, rr[1] - 1] = 0.
-    #map_x[5, rr[2]] = 0.; map_x[5, rr[2] - 1] = 0.
-
 def place_agents(map_x, setup):
     post = []
     for j in [1.0, 2.0]:
@@ -30,15 +24,13 @@ def place_agents(map_x, setup):
     return post[0], post[1]
 
 def preprocess_map(map_x, setup):
-    clear_path(map_x)
     return place_agents(map_x, setup)
 
 class GridGameEnv(gym.Env):
     def __init__(self, task={}, setup=0):
         self._task = task
         self.setup = setup
-        map_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'map_empty.txt')
-        self.map = np.loadtxt(map_file, dtype='i', delimiter=',')
+        self.map = np.zeros((5, 5))
         self.agent_pos, self.goal_pos = preprocess_map(self.map, self.setup)
         self.init_apos = np.array(self.agent_pos)
         self.init_gpos = np.array(self.goal_pos)
@@ -65,12 +57,11 @@ class GridGameEnv(gym.Env):
         desc[self.agent_pos[0]][self.agent_pos[1]] = colorize(desc[self.agent_pos[0]][self.agent_pos[1]], "red", highlight=True)
         desc[self.goal_pos[0]][self.goal_pos[1]] = colorize(desc[self.goal_pos[0]][self.goal_pos[1]], "blue", highlight=True)
         outfile.write("\n")
-        outfile.write("\n".join(''.join(line) for line in desc)+"\n")
+        outfile.write("\n".join(' '.join(line) for line in desc)+"\n")
 
 
     def reset(self):
-        map_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'map_empty.txt')
-        self.map = np.loadtxt(map_file, dtype='i', delimiter=',')
+        self.map = np.zeros((5, 5))
         self.agent_pos, self.goal_pos = preprocess_map(self.map, self.setup)
         return self.map.astype(np.float32) / 2.0
 
