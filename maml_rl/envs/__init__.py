@@ -49,25 +49,26 @@ register(
 
 # GridGame
 # ----------------------------------------
+map_dim = 10
 register(
     'GridGameTrain-v0',
     entry_point='maml_rl.envs.grid_game:GridGameEnv',
-    kwargs={'setup': 0, 'task': {}},
-    max_episode_steps=25
+    kwargs={'setup': 0, 'dim': map_dim, 'task': {}},
+    max_episode_steps=map_dim**2
 )
 
 register(
     'GridGameSmallTest-v0',
     entry_point='maml_rl.envs.grid_game:GridGameEnv',
-    kwargs={'setup': 1, 'task': {}},
-    max_episode_steps=25
+    kwargs={'setup': 1, 'dim': map_dim, 'task': {}},
+    max_episode_steps=map_dim**2
 )
 
 register(
     'GridGameTest-v0',
     entry_point='maml_rl.envs.grid_game:GridGameEnv',
-    kwargs={'setup': 2, 'task': {}},
-    max_episode_steps=25
+    kwargs={'setup': 2, 'dim': map_dim, 'task': {}},
+    max_episode_steps=map_dim**2
 )
 
 

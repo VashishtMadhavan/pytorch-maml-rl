@@ -27,10 +27,11 @@ def preprocess_map(map_x, setup):
     return place_agents(map_x, setup)
 
 class GridGameEnv(gym.Env):
-    def __init__(self, task={}, setup=0):
+    def __init__(self, task={}, setup=0, dim=5):
         self._task = task
         self.setup = setup
-        self.map = np.zeros((5, 5))
+        self.map_dim = dim
+        self.map = np.zeros((self.map_dim, self.map_dim))
         self.agent_pos, self.goal_pos = preprocess_map(self.map, self.setup)
         self.init_apos = np.array(self.agent_pos)
         self.init_gpos = np.array(self.goal_pos)
@@ -61,7 +62,7 @@ class GridGameEnv(gym.Env):
 
 
     def reset(self):
-        self.map = np.zeros((5, 5))
+        self.map = np.zeros((self.map_dim, self.map_dim))
         self.agent_pos, self.goal_pos = preprocess_map(self.map, self.setup)
         return self.map.astype(np.float32) / 2.0
 
