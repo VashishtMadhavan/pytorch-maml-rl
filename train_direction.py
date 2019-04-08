@@ -54,13 +54,17 @@ class DirectionModel(nn.Module):
 		self.input_size = input_size
 		self.output_size = output_size
 
-		self.conv1 = nn.Conv2d(1, 16, kernel_size=4, stride=1)
-		self.fc = nn.Linear(7 * 7 * 16, 32)
+		self.conv1 = nn.Conv2d(1, 16, kernel_size=3, stride=1)
+		self.conv2 = nn.Conv2d(16, 16, kernel_size=3, stride=1)
+		self.conv3 = nn.Conv2d(16, 16, kernel_size=3, stride=1)
+		self.fc = nn.Linear(4 * 4 * 16, 32)
 		self.final = nn.Linear(32, self.output_size)
 
 	def forward(self, x):
 		out = x.unsqueeze(1)
 		out = F.relu(self.conv1(out))
+		out = F.relu(self.conv2(out))
+		out = F.relu(self.conv3(out))
 		out = out.view(out.size(0), -1)
 		out = F.relu(self.fc(out))
 		return self.final(out)
@@ -155,7 +159,7 @@ if __name__ == "__main__":
 	parser.add_argument('--outdir', type=str, default='dir_model_debug/', help='where to save results')
 	parser.add_argument('--lr', type=float, default=1e-3, help='learning rate')
 	parser.add_argument('--l2_pen', type=float, default=1e-3, help='l2 regularization penalty')
-	parser.add_argument('--epochs', type=int, default=20, help='number of training epochs')
+	parser.add_argument('--epochs', type=int, default=25, help='number of training epochs')
 	args = parser.parse_args()
 
 	os.environ['CUDA_VISIBLE_DEVICES'] = str(args.gpu)

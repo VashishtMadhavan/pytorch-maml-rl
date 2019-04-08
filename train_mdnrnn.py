@@ -103,16 +103,20 @@ class ConvModel(nn.Module):
 
 		self.conv1 = nn.Conv2d(1, hidden_size, kernel_size=3, stride=1)
 		self.conv2 = nn.Conv2d(hidden_size, hidden_size, kernel_size=3, stride=1)
+		self.conv2 = nn.Conv2d(hidden_size, hidden_size, kernel_size=3, stride=1)
 		self.fc = nn.Linear(hidden_size + action_dim, 32)
 		self.rew_out = nn.Linear(32, 1)
 
 		self.deconv1 = nn.ConvTranspose2d(32, hidden_size, kernel_size=3, stride=1)
+		self.deconv2 = nn.ConvTranspose2d(hidden_size, hidden_size, kernel_size=3, stride=1)
 		self.deconv2 = nn.ConvTranspose2d(hidden_size, 1, kernel_size=3, stride=1)
 
 	def forward(self, x, a):
 		out = x.unsqueeze(1)
 		out = F.relu(self.conv1(out))
 		out = F.relu(self.conv2(out))
+		out = F.relu(self.conv3(out))
+
 		out = out.view(out.size(0), -1)
 		out = torch.cat((out, a), dim=-1)
 		out = F.relu(self.fc(out))
@@ -120,7 +124,8 @@ class ConvModel(nn.Module):
 
 		out = out.unsqueeze(-1).unsqueeze(-1)
 		out = F.relu(self.deconv1(out))
-		pred = self.deconv2(out)
+		out = F.relu(self.deconv2(out))
+		pred = self.deconv3(out)
 		return pred.squeeze(), rew_pred
 
 def get_batch(data, batch_size, device=torch.device('cpu')):
@@ -143,7 +148,7 @@ def get_ff_loss(obs, act, obs_tp1, rew, done, prev_obs, prev_act, model, epoch, 
 	pred_frac = beta_schedule.value(epoch)
 	mix_batch_size = int(pred_frac * len(prev_obs_pred))
 
-	if mix_batch_size > 0:
+	if mix_batch_size > 1:
 		M = np.random.choice(np.arange(1, len(prev_obs_pred)), size=mix_batch_size, replace=False)
 		N = np.random.choice(np.arange(len(obs)), size=len(obs) - mix_batch_size, replace=False)
 
