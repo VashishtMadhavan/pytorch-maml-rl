@@ -103,13 +103,14 @@ class ConvModel(nn.Module):
 
 		self.conv1 = nn.Conv2d(1, hidden_size, kernel_size=3, stride=1)
 		self.conv2 = nn.Conv2d(hidden_size, hidden_size, kernel_size=3, stride=1)
-		self.conv2 = nn.Conv2d(hidden_size, hidden_size, kernel_size=3, stride=1)
-		self.fc = nn.Linear(hidden_size + action_dim, 32)
+		self.conv3 = nn.Conv2d(hidden_size, hidden_size, kernel_size=3, stride=1)
+		self.fc = nn.Linear(4 * 4 * hidden_size + action_dim, 32)
 		self.rew_out = nn.Linear(32, 1)
 
 		self.deconv1 = nn.ConvTranspose2d(32, hidden_size, kernel_size=3, stride=1)
 		self.deconv2 = nn.ConvTranspose2d(hidden_size, hidden_size, kernel_size=3, stride=1)
-		self.deconv2 = nn.ConvTranspose2d(hidden_size, 1, kernel_size=3, stride=1)
+		self.deconv3 = nn.ConvTranspose2d(hidden_size, hidden_size, kernel_size=3, stride=1)
+		self.deconv4 = nn.ConvTranspose2d(hidden_size, 1, kernel_size=4, stride=1)
 
 	def forward(self, x, a):
 		out = x.unsqueeze(1)
@@ -125,7 +126,8 @@ class ConvModel(nn.Module):
 		out = out.unsqueeze(-1).unsqueeze(-1)
 		out = F.relu(self.deconv1(out))
 		out = F.relu(self.deconv2(out))
-		pred = self.deconv3(out)
+		out = F.relu(self.deconv3(out))
+		pred = self.deconv4(out)
 		return pred.squeeze(), rew_pred
 
 def get_batch(data, batch_size, device=torch.device('cpu')):
