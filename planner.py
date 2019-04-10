@@ -47,7 +47,10 @@ def main(args):
 		model = FFModel(input_size=obs_shape[0] * obs_shape[1], action_dim=act_dim, hidden_size=args.hidden_size)
 	model.to(args.device)
 
-	model.load_state_dict(torch.load(args.model_file, 
+	policy_file = args.model_dir + '/final.pt'
+	log_file = args.model_dir + '/plan_env_{}_k{}_n{}.txt'.format(args.env, args.k, args.n)
+
+	model.load_state_dict(torch.load(policy_file,
 		map_location=args.device.type if args.device.type == 'cpu' else None))
 
 	planner = Planner(model, k=args.k, n=args.n, conv=args.conv)
@@ -64,10 +67,11 @@ def main(args):
 		tot_T.append(ep_T)
 		tot_R.append(ep_R)
 
-	print("MeanEpRew: ", np.mean(tot_R))
-	print("StdMeanRew: ", np.std(tot_R) / np.sqrt(len(tot_R)))
-	print("MeanEpSteps: ", np.mean(tot_T))
-
+	wf = open(log_file, 'a')
+	print("MeanEpRew: {}".format(np.mean(tot_R)), file=wf)
+	print("N: {}".format(len(tot_R)), file=wf)
+	print("StdMeanRew: {}".format(np.std(tot_R) / np.sqrt(len(tot_R))), file=wf)
+	print("MeanEpSteps: {}".format(np.mean(tot_T)), file=wf)
 
 def parse_args():
 	parser = argparse.ArgumentParser()
@@ -75,10 +79,10 @@ def parse_args():
 	parser.add_argument('--hidden_size', type=int, default=16)
 	parser.add_argument('--env', type=str, default='GridGameTrain-v0')
 	parser.add_argument('--gpu', type=int, default=0, help='which gpu to use')
-	parser.add_argument('--test_eps', type=int, default=1000)
-	parser.add_argument('--k', type=int, default=5, help='planning depth')
-	parser.add_argument('--n', type=int, default=500, help='planning trajectories')
-	parser.add_argument('--model_file', type=str)
+	parser.add_argument('--test_eps', type=int, default=300)
+	parser.add_argument('--k', type=int, default=10, help='planning depth')
+	parser.add_argument('--n', type=int, default=1000, help='planning trajectories')
+	parser.add_argument('--model_dir', type=str)
 	return parser.parse_args()
 
 if __name__=="__main__":

@@ -9,6 +9,7 @@ quicksilver_config.json
 .build*/
 .generated/
 *.egg-info/
+*.json
 
 # C extensions
 *.so
