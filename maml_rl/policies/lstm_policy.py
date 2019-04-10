@@ -69,7 +69,10 @@ class GRUPolicy(nn.Module):
         self.D = D
         self.N = N
 
-        self.conv1 = nn.Conv2d(1, 16, kernel_size=4, stride=1)
+        self.conv1 = nn.Conv2d(1, 16, kernel_size=3, stride=1)
+        self.conv2 = nn.Conv2d(16, 16, kernel_size=3, stride=1)
+        self.conv3 = nn.Conv2d(16, 16, kernel_size=3, stride=1)
+        self.conv4 = nn.Conv2d(16, 16, kernel_size=3, stride=1)
         lstm_input_shape = (2,2)
 
         self.cell_list = [ConvGRUCell(input_size=lstm_input_shape,
@@ -84,6 +87,9 @@ class GRUPolicy(nn.Module):
     def forward(self, x, hx, embed):
         output = x.unsqueeze(1)
         output = F.relu(self.conv1(output))
+        output = F.relu(self.conv2(output))
+        output = F.relu(self.conv3(output))
+        output = F.relu(self.conv4(output))
         #output = output.view(output.size(0), -1)
         #output = torch.cat((output, embed), dim=1)
         h_in = hx
