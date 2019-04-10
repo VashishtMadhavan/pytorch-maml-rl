@@ -97,6 +97,7 @@ class ConvModel(nn.Module):
 	def __init__(self, input_size, action_dim, hidden_size, K=2):
 		super(ConvModel, self).__init__()
 		self.input_size = input_size
+		self.input_h = int(np.sqrt(input_size))
 		self.action_dim = action_dim
 		self.hidden_size = hidden_size
 		self.K = K
@@ -106,11 +107,8 @@ class ConvModel(nn.Module):
 		self.conv3 = nn.Conv2d(hidden_size, hidden_size, kernel_size=3, stride=1)
 		self.fc = nn.Linear(4 * 4 * hidden_size + action_dim, 32)
 		self.rew_out = nn.Linear(32, 1)
+		self.pred_out = nn.Linear(32, input_size)
 
-		self.deconv1 = nn.ConvTranspose2d(32, hidden_size, kernel_size=3, stride=1)
-		self.deconv2 = nn.ConvTranspose2d(hidden_size, hidden_size, kernel_size=3, stride=1)
-		self.deconv3 = nn.ConvTranspose2d(hidden_size, hidden_size, kernel_size=3, stride=1)
-		self.deconv4 = nn.ConvTranspose2d(hidden_size, 1, kernel_size=4, stride=1)
 
 	def forward(self, x, a):
 		out = x.unsqueeze(1)
@@ -122,13 +120,8 @@ class ConvModel(nn.Module):
 		out = torch.cat((out, a), dim=-1)
 		out = F.relu(self.fc(out))
 		rew_pred = self.rew_out(out)
-
-		out = out.unsqueeze(-1).unsqueeze(-1)
-		out = F.relu(self.deconv1(out))
-		out = F.relu(self.deconv2(out))
-		out = F.relu(self.deconv3(out))
-		pred = self.deconv4(out)
-		return pred.squeeze(), rew_pred
+		pred = self.pred_out(out)
+		return pred.reshape(pred.size(0), self.input_h, self.input_h), rew_pred
 
 def get_batch(data, batch_size, device=torch.device('cpu')):
 	random_idx = np.random.choice(np.arange(len(data)), size=batch_size, replace=False)
@@ -233,7 +226,7 @@ if __name__ == "__main__":
 	parser.add_argument('--T', type=int, default=20000, help='number of rollouts to collect')
 	parser.add_argument('--outdir', type=str, default='mdn_debug/', help='where to save results')
 	parser.add_argument('--lr', type=float, default=1e-3, help='learning rate')
-	parser.add_argument('--l2_pen', type=float, default=1e-9, help='l2 regularization penalty')
+	parser.add_argument('--l2_pen', type=float, default=1e-3, help='l2 regularization penalty')
 	parser.add_argument('--beta', type=float, default=0.0, help='mixing coefficient for data')
 	parser.add_argument('--epochs', type=int, default=200, help='number of training epochs')
 	args = parser.parse_args()
