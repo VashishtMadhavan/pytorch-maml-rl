@@ -18,7 +18,7 @@ ENV PATH=/opt/conda/bin/:${PATH}
 
 # Install requirements
 RUN /bin/bash --login -c "conda activate base && \
-    pip install pygame cloudpickle && \
+    pip install pygame cloudpickle tqdm && \
     pip install torch && \
     pip install torchvision && \
     git clone https://github.com/VashishtMadhavan/PyGame-Learning-Environment.git && \
