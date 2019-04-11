@@ -137,7 +137,10 @@ def get_batch(data, batch_size, device=torch.device('cpu')):
 	return obs_batch.to(device), act_batch.to(device), obs_tp1_batch.to(device), \
 		rew_batch.to(device), done_batch.to(device), prev_obs_batch.to(device), prev_act_batch.to(device)
 
-def get_ff_loss(obs, act, obs_tp1, rew, done, prev_obs, prev_act, model, epoch, beta_schedule):
+def get_ff_loss(dataset, model, epoch, beta_schedule, batch_size, device):
+	obs, act, obs_tp1, rew, \
+		done, prev_obs, prev_act = get_batch(dataset, batch_size, device=device)
+
 	with torch.no_grad():
 		prev_obs_pred, _ = model(prev_obs, prev_act)
 	pred_frac = beta_schedule.value(epoch)
@@ -200,17 +203,15 @@ def main(args):
 		num_batches = len(train_data) // args.batch_size
 		avg_train_loss = []
 		for idx in tqdm(range(num_batches)):
-			obs_batch, act_batch, obs_tp1_batch, rew_batch, done_batch, prev_obs_batch, prev_act_batch = get_batch(train_data, args.batch_size, device=args.device)
 			optimizer.zero_grad()
-			loss = loss_fn(obs_batch, act_batch, obs_tp1_batch, rew_batch, done_batch, prev_obs_batch, prev_act_batch, model, ep, beta_schedule=beta_schedule)
+			loss = loss_fn(train_data, model, ep, beta_schedule, args.batch_size, args.device)
 			loss.backward()
 			avg_train_loss.append(loss.item())
 			optimizer.step()
 
 		model.eval()
-		t_obs_batch, t_act_batch, t_obs_tp1_batch, t_rew_batch, t_done_batch, t_prev_obs_batch, t_prev_act_batch = get_batch(test_data, 1000, device=args.device)
 		with torch.no_grad():
-			avg_t_loss = loss_fn(t_obs_batch, t_act_batch, t_obs_tp1_batch, t_rew_batch, t_done_batch, t_prev_obs_batch, t_prev_act_batch, model, ep, beta_schedule=test_beta_schedule)
+			avg_t_loss = loss_fn(test_data, model, ep, test_beta_schedule, 1000, args.device)
 		print('====> Epoch: {} TrainLoss: {:.4f} TestLoss: {:.4f}'.format(ep, np.mean(avg_train_loss), avg_t_loss.item()))
 
 	with open(os.path.join(args.outdir, 'final.pt'), 'wb') as f:
