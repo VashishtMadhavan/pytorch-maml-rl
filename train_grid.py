@@ -30,7 +30,7 @@ def main(args):
 
         batch_step_time = time.time() - tstart
         tot_rew = torch_utils.total_rewards([episodes.rewards])
-        tsteps = (batch + 1) * args.batch_size * 25
+        tsteps = (batch + 1) * args.batch_size * 100
 
         # Logging metrics
         logger.logkv('MeanReward:', tot_rew)
@@ -65,7 +65,7 @@ if __name__ == '__main__':
     parser.add_argument('--tau', type=float, default=0.95, help='discount factor for GAE')
     parser.add_argument('--vf_coef', type=float, default=0.5, help='value function coeff')
     parser.add_argument('--ent_coef', type=float, default=0.01, help='entropy bonus coeff')
-    parser.add_argument('--batch-size', type=int, default=1000, help='num episodes for gradient est.')
+    parser.add_argument('--batch-size', type=int, default=200, help='num episodes for gradient est.')
     parser.add_argument('--train-iters', type=int, default=1000, help='training iterations')
 
     # Miscellaneous
