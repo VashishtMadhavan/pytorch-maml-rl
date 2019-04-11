@@ -6,6 +6,7 @@ import numpy as np
 from maml_rl.envs.subproc_vec_env import SubprocVecEnv
 from maml_rl.episode import LSTMBatchEpisodes
 from maml_rl.policies import FFPolicy, GRUPolicy
+from collections import deque
 
 def make_env(env_name):
     def _make_env():
@@ -32,6 +33,7 @@ class GridLearner(object):
         self.N = N
         self.n_step = n_step
         self.lstm_size = lstm_size
+        self.reward_log = deque(maxlen=100)
 
         # Sampler variables
         self.num_batches = num_batches
@@ -151,8 +153,7 @@ class GridLearner(object):
         episodes = LSTMBatchEpisodes(batch_size=self.num_workers, gamma=self.gamma, device=self.device)
         for ns in range(self.n_step):
             with torch.no_grad():
-                obs_tensor = torch.from_numpy(self.obs).to(device=self.device)
-                import pdb; pdb.set_trace()
+                obs_tensor = torch.from_numpy(self.obs).float().to(device=self.device)
                 #act_dist, values_tensor, self.hx = self.policy(obs_tensor, self.hx, embed_tensor)
                 act_dist, values_tensor = self.policy(obs_tensor)
                 act_tensor = act_dist.sample()
@@ -163,6 +164,10 @@ class GridLearner(object):
                 old_values = values_tensor.squeeze().cpu().numpy()
                 embed = self.embed.cpu().numpy()
             new_observations, rewards, self.dones, infos = self.envs.step(actions)
+
+            # logging episode rew
+            for dr in rewards[self.dones]:
+                self.reward_log.append(dr)
 
             # Update embeddings when episode is done
             embed_temp = np.hstack((one_hot(actions, self.num_actions), rewards[:, None], self.dones[:, None]))
@@ -175,7 +180,7 @@ class GridLearner(object):
             self.embed[dones_tensor == 1] = 0.
             self.embed[dones_tensor == 1, 0] = 1.
 
-            episodes.append(self.obs, actions, rewards, log_probs, old_values, self.embed)
+            episodes.append(self.obs, actions, rewards, log_probs, old_values, embed)
             self.obs[:] = new_observations
         return episodes
 

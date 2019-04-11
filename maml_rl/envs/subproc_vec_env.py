@@ -53,9 +53,17 @@ def _worker(remote, parent_remote, env_fn_wrapper):
         except EOFError:
             break
 
+def _flatten_obs(obs):
+    assert isinstance(obs, (list, tuple))
+    assert len(obs) > 0
+    if isinstance(obs[0], dict):
+        keys = obs[0].keys()
+        return {k: np.stack([o[k] for o in obs]) for k in keys}
+    else:
+        return np.stack(obs)
 
 class SubprocVecEnv(gym.Env):
-    def __init__(self, env_factory, queue):
+    def __init__(self, env_factory):
         self.waiting = False
         self.closed = False
         n_envs = len(env_factory)
@@ -89,16 +97,14 @@ class SubprocVecEnv(gym.Env):
         assert not self.closed
         results = [remote.recv() for remote in self.remotes]
         self.waiting = False
-        observations, rewards, dones, task_ids, infos = zip(*results)
-        return np.stack(observations), np.stack(rewards), np.stack(dones), infos
+        observations, rewards, dones, infos = zip(*results)
+        return _flatten_obs(observations), np.stack(rewards), np.stack(dones), infos
 
     def reset(self):
         assert not self.closed
         for remote in self.remotes:
             remote.send(('reset', None))
-        results = [remote.recv() for remote in self.remotes]
-        observations, task_ids = zip(*results)
-        return np.stack(observations)
+        return _flatten_obs([remote.recv() for remote in self.remotes])
 
     def close(self):
         if self.closed:

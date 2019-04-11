@@ -13,7 +13,7 @@ def main(args):
     logger = gen_utils.Logger(args.outdir)
     logger.save_config(args)
 
-    learner = GridLearner(env_name=args.env ent_coef=args.ent_coef,num_workers=args.workers, 
+    learner = GridLearner(env_name=args.env, ent_coef=args.ent_coef,num_workers=args.workers, 
         num_batches=args.train_iters, gamma=args.gamma, lr=args.lr, tau=args.tau, vf_coef=args.vf_coef, 
         device=args.device, D=args.d, N=args.n, n_step=args.n_step)
 
@@ -29,11 +29,10 @@ def main(args):
         learner.surrogate_step(episodes)
 
         batch_step_time = time.time() - tstart
-        tot_rew = torch_utils.total_rewards([episodes.rewards])
         tsteps = (batch + 1) * args.workers * args.n_step
 
         # Logging metrics
-        logger.logkv('MeanReward:', tot_rew)
+        logger.logkv('MeanReward:', np.mean(learner.reward_log))
         logger.logkv('Batch:', batch)
         logger.logkv('Tsteps:', tsteps)
         logger.logkv('TimePerBatch:', batch_step_time)

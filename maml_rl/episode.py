@@ -91,11 +91,10 @@ class BatchEpisodes(object):
 
         return advantages
 
-    def append(self, observations, actions, rewards, batch_ids):
+    def append(self, observations, actions, rewards):
+        batch_ids = np.arange(self.batch_size)
         for observation, action, reward, batch_id in zip(
                 observations, actions, rewards, batch_ids):
-            if batch_id is None:
-                continue
             self._observations_list[batch_id].append(observation.astype(np.float32))
             self._actions_list[batch_id].append(action.astype(np.float32))
             self._rewards_list[batch_id].append(reward.astype(np.float32))
@@ -132,11 +131,10 @@ class PPOEpisodes(BatchEpisodes):
             self._old_value = torch.from_numpy(values).to(self.device)
         return self._old_value
 
-    def append(self, observations, actions, rewards, batch_ids, log_probs, old_values):
+    def append(self, observations, actions, rewards, log_probs, old_values):
+        batch_ids = np.arange(self.batch_size)
         for observation, action, reward, batch_id, log_prob, old_value in zip(
                 observations, actions, rewards, batch_ids, log_probs, old_values):
-            if batch_id is None:
-                continue
             self._observations_list[batch_id].append(observation.astype(np.float32))
             self._actions_list[batch_id].append(action.astype(np.float32))
             self._rewards_list[batch_id].append(reward.astype(np.float32))
@@ -160,11 +158,10 @@ class LSTMBatchEpisodes(PPOEpisodes):
             self._embed = torch.from_numpy(embeds).to(self.device)
         return self._embed
 
-    def append(self, observations, actions, rewards, batch_ids, log_probs, old_values, embeds):
+    def append(self, observations, actions, rewards, log_probs, old_values, embeds):
+        batch_ids = np.arange(self.batch_size)
         for observation, action, reward, batch_id, log_prob, old_value, embed in zip(
                 observations, actions, rewards, batch_ids, log_probs, old_values, embeds):
-            if batch_id is None:
-                continue
             self._observations_list[batch_id].append(observation.astype(np.float32))
             self._actions_list[batch_id].append(action.astype(np.float32))
             self._rewards_list[batch_id].append(reward.astype(np.float32))
