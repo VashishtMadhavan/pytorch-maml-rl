@@ -8,7 +8,7 @@ from tqdm import tqdm
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from train_mdnrnn import FFModel, ConvModel, one_hot
+from train_mdnrnn import Model, one_hot
 
 class Planner:
 	def __init__(self, model, k, n, conv=False):
@@ -32,7 +32,7 @@ class Planner:
 		with torch.no_grad():
 			for t in range(actions.shape[1]):
 				obs_tens, r = self.model(obs_tens, act_tens[:, t, :])
-				rew += np.round(torch.sigmoid(r).cpu().numpy().squeeze())
+				rew += r.cpu().numpy().squeeze()
 		best_idx = np.argmax(rew)
 		return actions[best_idx][0]
 
@@ -41,10 +41,7 @@ def main(args):
 	obs_shape = env.observation_space.shape
 	act_dim = env.action_space.n
 
-	if args.conv:
-		model = ConvModel(input_size=obs_shape[0] * obs_shape[1], action_dim=act_dim, hidden_size=args.hidden_size)
-	else:
-		model = FFModel(input_size=obs_shape[0] * obs_shape[1], action_dim=act_dim, hidden_size=args.hidden_size)
+	model = Model(input_size, act_dim, conv=args.conv)
 	model.to(args.device)
 
 	policy_file = args.model_dir + '/final.pt'

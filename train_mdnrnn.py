@@ -104,8 +104,8 @@ class Model(nn.Module):
 			out = out.view(out.size(0), -1)
 		out = torch.cat((out, a), dim=-1)
 		out = F.relu(self.fc(out))
-		return self.pred_out(out).reshape(out.size(0), 
-			self.input_h, self.input_h), self.rew_out(out)
+		return torch.sigmoid(self.pred_out(out).reshape(out.size(0), 
+			self.input_h, self.input_h)), torch.sigmoid(self.rew_out(out))
 
 class ModelTrainer:
 	def __init__(self, data, model, args):
@@ -147,7 +147,7 @@ class ModelTrainer:
 			M = np.random.choice(np.arange(1, len(prev_obs_pred)), size=mix_batch_size, replace=False)
 			N = np.random.choice(np.arange(len(obs)), size=len(obs) - mix_batch_size, replace=False)
 
-			pred, r_pred = model(obs[N], act[N])
+			pred, r_pred = self.model(obs[N], act[N])
 			pred_prime, r_pred_prime = self.model(prev_obs_pred[M], act[M])
 
 			tot_pred = torch.cat((pred, pred_prime), dim=0)
@@ -156,15 +156,13 @@ class ModelTrainer:
 			tot_target = torch.cat((obs_tp1[N], obs_tp1[M]), dim=0)
 			tot_r_target = torch.cat((rew[N], rew[M]), dim=0)
 
-			pred_loss = F.smooth_l1_loss(tot_pred, tot_target)
-			rew_loss = F.binary_cross_entropy_with_logits(tot_r_pred.squeeze(), tot_r_target)
+			pred_loss = F.binary_cross_entropy(tot_pred, tot_target)
+			rew_loss = F.binary_cross_entropy(tot_r_pred.squeeze(), tot_r_target)
 		else:
 			pred, r_pred = self.model(obs, act)
-			if epoch == 9:
-				import pdb; pdb.set_trace()
 			# computing losses
-			pred_loss = F.smooth_l1_loss(pred, obs_tp1)
-			rew_loss = F.binary_cross_entropy_with_logits(r_pred.squeeze(), rew)
+			pred_loss = F.binary_cross_entropy(pred, obs_tp1)
+			rew_loss = F.binary_cross_entropy(r_pred.squeeze(), rew)
 		return pred_loss + rew_loss
 		
 	def train(self):

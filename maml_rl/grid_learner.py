@@ -24,7 +24,7 @@ class GridLearner(object):
     """
     def __init__(self, env_name, batch_size, num_workers, num_batches=1000, gamma=0.95, lr=0.01, 
                 tau=1.0, ent_coef=.01, vf_coef=0.5, lstm_size=32, clip_frac=0.2, device='cpu',
-                surr_epochs=3, surr_batches=4, max_grad_norm=0.5, D=1, N=1):
+                surr_epochs=3, surr_batches=4, max_grad_norm=0.5, D=1, N=1)
         self.env_name = env_name
         self.vf_coef = vf_coef
         self.ent_coef = ent_coef
@@ -118,7 +118,6 @@ class GridLearner(object):
         vf_loss = 0.5 * weighted_mean(torch.max(vf_loss1, vf_loss2)[:, inds], dim=0, weights=masks)
         entropy_loss = weighted_mean(entropy[:, inds], dim=0, weights=masks)
         return pg_loss + self.vf_coef * vf_loss - self.ent_coef * entropy_loss
-
 
     def step(self, episodes):
         """
