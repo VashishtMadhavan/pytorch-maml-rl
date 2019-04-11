@@ -115,8 +115,7 @@ class FFPolicy(nn.Module):
         self.conv1 = nn.Conv2d(1, 16, kernel_size=3, stride=1)
         self.conv2 = nn.Conv2d(16, 16, kernel_size=3, stride=1)
         self.conv3 = nn.Conv2d(16, 16, kernel_size=3, stride=1)
-        self.conv4 = nn.Conv2d(16, 16, kernel_size=3, stride=1)
-        self.fc = nn.Linear(2 * 2 * 16, 32)
+        self.fc = nn.Linear(4 * 4 * 16, 32)
 
         self.pi = nn.Linear(32, self.output_size)
         self.v = nn.Linear(32, 1)
@@ -126,7 +125,6 @@ class FFPolicy(nn.Module):
         output = F.relu(self.conv1(output))
         output = F.relu(self.conv2(output))
         output = F.relu(self.conv3(output))
-        output = F.relu(self.conv4(output))
         output = output.view(output.size(0), -1)
         output = F.relu(self.fc(output))
         return Categorical(logits=self.pi(output)), self.v(output)
