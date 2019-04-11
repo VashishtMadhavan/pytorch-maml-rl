@@ -3,7 +3,6 @@ from maml_rl.utils.torch_utils import (weighted_mean, weighted_normalize)
 import torch.optim as optim
 import gym
 import numpy as np
-import multiprocessing as mp
 from maml_rl.envs.subproc_vec_env import SubprocVecEnv
 from maml_rl.episode import LSTMBatchEpisodes
 from maml_rl.policies import FFPolicy, GRUPolicy
@@ -22,26 +21,32 @@ class GridLearner(object):
     """
     GRU Learner using A2C/PPO
     """
-    def __init__(self, env_name, batch_size, num_workers, num_batches=1000, gamma=0.95, lr=0.01, 
+    def __init__(self, env_name, num_workers, num_batches=1000, gamma=0.95, lr=0.01, 
                 tau=1.0, ent_coef=.01, vf_coef=0.5, lstm_size=32, clip_frac=0.2, device='cpu',
-                surr_epochs=3, surr_batches=4, max_grad_norm=0.5, D=1, N=1)
+                surr_epochs=3, surr_batches=4, max_grad_norm=0.5, D=1, N=1, n_step=5):
         self.env_name = env_name
         self.vf_coef = vf_coef
         self.ent_coef = ent_coef
         self.gamma = gamma
         self.D = D
         self.N = N
+        self.n_step = n_step
+        self.lstm_size = lstm_size
 
         # Sampler variables
         self.num_batches = num_batches
-        self.batch_size = batch_size
         self.num_workers = num_workers
-        self.queue = mp.Queue()
-        self.envs = SubprocVecEnv([make_env(self.env_name) for _ in range(num_workers)], queue=self.queue)
+        self.envs = SubprocVecEnv([make_env(self.env_name) for _ in range(num_workers)])
         self.obs_shape = self.envs.observation_space.shape
         self.num_actions = self.envs.action_space.n
 
-        self.lstm_size = lstm_size
+        self.obs = np.zeros((num_workers, ) + self.obs_shape)
+        self.obs[:] = self.envs.reset()
+        self.dones = [False for _ in range(num_workers)]
+        self.hx = torch.zeros(self.D, self.num_workers, self.lstm_size, 2, 2).to(device=device)
+        self.embed = torch.zeros(self.num_workers, self.num_actions + 2).to(device=device)
+        self.embed[:, 0] = 1.
+
         #self.policy = GRUPolicy(input_size=self.obs_shape[0], output_size=self.num_actions, lstm_size=self.lstm_size, D=self.D, N=self.N)
         self.policy = FFPolicy(input_size=self.obs_shape[0], output_size=self.num_actions, D=self.D)
 
@@ -54,7 +59,7 @@ class GridLearner(object):
         # PPO variables
         self.surrogate_epochs = surr_epochs
         self.surrogate_batches = surr_batches
-        self.surrogate_batch_size = self.batch_size // self.surrogate_batches
+        self.surrogate_batch_size = self.num_workers // self.surrogate_batches
 
         self.to(device)
         self.max_grad_norm = max_grad_norm
@@ -62,7 +67,7 @@ class GridLearner(object):
     def _forward_policy(self, episodes, ratio=False):
         T = episodes.observations.size(0)
         values, log_probs, entropy = [], [], []
-        hx = torch.zeros(self.D, self.batch_size, self.lstm_size, 2, 2).to(device=self.device)
+        hx = torch.zeros(self.D, self.num_workers, self.lstm_size, 2, 2).to(device=self.device)
         
         for t in range(T):
             #pi, v, hx = self.policy(episodes.observations[t], hx, episodes.embeds[t])
@@ -111,7 +116,7 @@ class GridLearner(object):
         vf_loss2 = (values_clipped - episodes.returns) ** 2
 
         if inds is None:
-            inds = np.arange(self.batch_size)
+            inds = np.arange(self.num_workers)
 
         masks = episodes.mask[:, inds]
         pg_loss = weighted_mean(torch.max(pg_loss1, pg_loss2)[:, inds], dim=0, weights=masks)
@@ -132,7 +137,7 @@ class GridLearner(object):
     def surrogate_step(self, episodes):
         for _ in range(self.surrogate_epochs):
             for k in range(self.surrogate_batches):
-                sample_inds = np.random.choice(self.batch_size, self.surrogate_batch_size, replace=False)
+                sample_inds = np.random.choice(self.num_workers, self.surrogate_batch_size, replace=False)
                 self.optimizer.zero_grad()
                 loss = self.surrogate_loss(episodes, inds=sample_inds)
                 loss.backward()
@@ -143,23 +148,12 @@ class GridLearner(object):
         """
         Sample trajectories
         """
-        episodes = LSTMBatchEpisodes(batch_size=self.batch_size, gamma=self.gamma, device=self.device)
-        for i in range(self.batch_size):
-            self.queue.put(i)
-        for _ in range(self.num_workers):
-            self.queue.put(None)
-
-        observations, batch_ids = self.envs.reset()
-        dones = [False]; timers = np.zeros(self.num_workers)
-
-        embed_tensor = torch.zeros(self.num_workers, self.num_actions + 2).to(device=self.device)
-        embed_tensor[:, 0] = 1.
-        hx = torch.zeros(self.D, self.num_workers, self.lstm_size, 2, 2).to(device=self.device)
-
-        while (not all(dones)) or (not self.queue.empty()):
+        episodes = LSTMBatchEpisodes(batch_size=self.num_workers, gamma=self.gamma, device=self.device)
+        for ns in range(self.n_step):
             with torch.no_grad():
-                obs_tensor = torch.from_numpy(observations).to(device=self.device)
-                #act_dist, values_tensor, hx = self.policy(obs_tensor, hx, embed_tensor)
+                obs_tensor = torch.from_numpy(self.obs).to(device=self.device)
+                import pdb; pdb.set_trace()
+                #act_dist, values_tensor, self.hx = self.policy(obs_tensor, self.hx, embed_tensor)
                 act_dist, values_tensor = self.policy(obs_tensor)
                 act_tensor = act_dist.sample()
 
@@ -167,22 +161,22 @@ class GridLearner(object):
                 log_probs = act_dist.log_prob(act_tensor).cpu().numpy()
                 actions = act_tensor.cpu().numpy()
                 old_values = values_tensor.squeeze().cpu().numpy()
-                embed = embed_tensor.cpu().numpy()
-            new_observations, rewards, dones, new_batch_ids, infos = self.envs.step(actions)
+                embed = self.embed.cpu().numpy()
+            new_observations, rewards, self.dones, infos = self.envs.step(actions)
 
             # Update embeddings when episode is done
-            embed_temp = np.hstack((one_hot(actions, self.num_actions), rewards[:, None], dones[:, None]))
-            embed_tensor = torch.from_numpy(embed_temp).float().to(device=self.device)
+            embed_temp = np.hstack((one_hot(actions, self.num_actions), rewards[:, None], self.dones[:, None]))
+            self.embed = torch.from_numpy(embed_temp).float().to(device=self.device)
 
             # Update hidden states
-            dones_tensor = torch.from_numpy(dones.astype(np.float32)).to(device=self.device)
-            #hx[:, dones_tensor == 1, :] = 0.
-            #hx[:, dones_tensor == 1, :, :, :] = 0.
-            embed_tensor[dones_tensor == 1] = 0.
-            embed_tensor[dones_tensor == 1, 0] = 1.
+            dones_tensor = torch.from_numpy(self.dones.astype(np.float32)).to(device=self.device)
+            #self.hx[:, dones_tensor == 1, :] = 0.
+            self.hx[:, dones_tensor == 1, :, :, :] = 0.
+            self.embed[dones_tensor == 1] = 0.
+            self.embed[dones_tensor == 1, 0] = 1.
 
-            episodes.append(observations, actions, rewards, batch_ids, log_probs, old_values, embed)
-            observations, batch_ids = new_observations, new_batch_ids
+            episodes.append(self.obs, actions, rewards, log_probs, old_values, self.embed)
+            self.obs[:] = new_observations
         return episodes
 
     def to(self, device, **kwargs):

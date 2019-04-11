@@ -13,9 +13,9 @@ def main(args):
     logger = gen_utils.Logger(args.outdir)
     logger.save_config(args)
 
-    learner = GridLearner(env_name=args.env, batch_size=args.batch_size, ent_coef=args.ent_coef,
-        num_workers=args.workers, num_batches=args.train_iters, gamma=args.gamma, lr=args.lr,
-        tau=args.tau, vf_coef=args.vf_coef, device=args.device, D=args.d, N=args.n)
+    learner = GridLearner(env_name=args.env ent_coef=args.ent_coef,num_workers=args.workers, 
+        num_batches=args.train_iters, gamma=args.gamma, lr=args.lr, tau=args.tau, vf_coef=args.vf_coef, 
+        device=args.device, D=args.d, N=args.n, n_step=args.n_step)
 
     logger.set_keys(['MeanReward:','Batch:','Tsteps:','TimePerBatch:'])
     batch = 0
@@ -30,7 +30,7 @@ def main(args):
 
         batch_step_time = time.time() - tstart
         tot_rew = torch_utils.total_rewards([episodes.rewards])
-        tsteps = (batch + 1) * args.batch_size * args.n_step
+        tsteps = (batch + 1) * args.workers * args.n_step
 
         # Logging metrics
         logger.logkv('MeanReward:', tot_rew)
@@ -62,17 +62,16 @@ if __name__ == '__main__':
     parser.add_argument('--n', type=int, default=1)
     parser.add_argument('--lr', type=float, default=1e-4)
     parser.add_argument('--gamma', type=float, default=0.99)
-    parser.add_argument('--n_step', type=int, default=25, help='horizon for PG')
+    parser.add_argument('--n_step', type=int, default=50, help='time horizon for PG')
     parser.add_argument('--tau', type=float, default=0.95, help='discount factor for GAE')
     parser.add_argument('--vf_coef', type=float, default=0.5, help='value function coeff')
     parser.add_argument('--ent_coef', type=float, default=0.01, help='entropy bonus coeff')
-    parser.add_argument('--batch-size', type=int, default=500, help='num episodes for gradient est.')
+    parser.add_argument('--workers', type=int, default=200, help='num episodes for gradient est.')
     parser.add_argument('--train-iters', type=int, default=1000, help='training iterations')
 
     # Miscellaneous
     parser.add_argument('--gpu', type=str, default='0')
     parser.add_argument('--outdir', type=str, default='grid_debug')
-    parser.add_argument('--workers', type=int, default=200, help='num workers for traj sampling')
     args = parser.parse_args()
 
     # Device
