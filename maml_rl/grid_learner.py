@@ -42,8 +42,8 @@ class GridLearner(object):
         self.num_actions = self.envs.action_space.n
 
         self.lstm_size = lstm_size
-        self.policy = GRUPolicy(input_size=self.obs_shape[0], output_size=self.num_actions, lstm_size=self.lstm_size, D=self.D, N=self.N)
-        #self.policy = FFPolicy(input_size=self.obs_shape[0], output_size=self.num_actions, D=self.D)
+        #self.policy = GRUPolicy(input_size=self.obs_shape[0], output_size=self.num_actions, lstm_size=self.lstm_size, D=self.D, N=self.N)
+        self.policy = FFPolicy(input_size=self.obs_shape[0], output_size=self.num_actions, D=self.D)
 
         # Optimization Variables
         self.lr = lr
@@ -65,8 +65,8 @@ class GridLearner(object):
         hx = torch.zeros(self.D, self.batch_size, self.lstm_size, 2, 2).to(device=self.device)
         
         for t in range(T):
-            pi, v, hx = self.policy(episodes.observations[t], hx, episodes.embeds[t])
-            #pi, v = self.policy(episodes.observations[t])
+            #pi, v, hx = self.policy(episodes.observations[t], hx, episodes.embeds[t])
+            pi, v = self.policy(episodes.observations[t])
             values.append(v)
             entropy.append(pi.entropy())
             if ratio:
@@ -160,8 +160,8 @@ class GridLearner(object):
         while (not all(dones)) or (not self.queue.empty()):
             with torch.no_grad():
                 obs_tensor = torch.from_numpy(observations).to(device=self.device)
-                act_dist, values_tensor, hx = self.policy(obs_tensor, hx, embed_tensor)
-                #act_dist, values_tensor = self.policy(obs_tensor)
+                #act_dist, values_tensor, hx = self.policy(obs_tensor, hx, embed_tensor)
+                act_dist, values_tensor = self.policy(obs_tensor)
                 act_tensor = act_dist.sample()
 
                 # cpu variables for logging
@@ -178,7 +178,7 @@ class GridLearner(object):
             # Update hidden states
             dones_tensor = torch.from_numpy(dones.astype(np.float32)).to(device=self.device)
             #hx[:, dones_tensor == 1, :] = 0.
-            hx[:, dones_tensor == 1, :, :, :] = 0.
+            #hx[:, dones_tensor == 1, :, :, :] = 0.
             embed_tensor[dones_tensor == 1] = 0.
             embed_tensor[dones_tensor == 1, 0] = 1.
 
