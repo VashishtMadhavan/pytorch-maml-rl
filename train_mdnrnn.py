@@ -89,7 +89,8 @@ class Model(nn.Module):
 			self.conv1 = nn.Conv2d(1, 16, kernel_size=3, stride=1)
 			self.conv2 = nn.Conv2d(16, 16, kernel_size=3, stride=1)
 			self.conv3 = nn.Conv2d(16, 16, kernel_size=3, stride=1)
-			self.fc = nn.Linear(4 * 4 * 16 + self.action_dim, 32)
+			self.conv4 = nn.Conv2d(16, 16, kernel_size=3, stride=1)
+			self.fc = nn.Linear(2 * 2 * 16 + self.action_dim, 32)
 		else:
 			self.fc = nn.Linear(self.input_size + self.action_dim, 32)
 		self.rew_out = nn.Linear(32, 1)
@@ -101,11 +102,12 @@ class Model(nn.Module):
 			out = F.relu(self.conv1(out))
 			out = F.relu(self.conv2(out))
 			out = F.relu(self.conv3(out))
+			out = F.relu(self.conv4(out))
 			out = out.view(out.size(0), -1)
 		out = torch.cat((out, a), dim=-1)
 		out = F.relu(self.fc(out))
-		return torch.sigmoid(self.pred_out(out).reshape(out.size(0), 
-			self.input_h, self.input_h)), torch.sigmoid(self.rew_out(out))
+		return self.pred_out(out).reshape(out.size(0),
+			self.input_h, self.input_h), torch.sigmoid(self.rew_out(out))
 
 class ModelTrainer:
 	def __init__(self, data, model, args):
@@ -156,12 +158,12 @@ class ModelTrainer:
 			tot_target = torch.cat((obs_tp1[N], obs_tp1[M]), dim=0)
 			tot_r_target = torch.cat((rew[N], rew[M]), dim=0)
 
-			pred_loss = F.binary_cross_entropy(tot_pred, tot_target)
+			pred_loss = F.smooth_l1_loss(tot_pred, tot_target)
 			rew_loss = F.binary_cross_entropy(tot_r_pred.squeeze(), tot_r_target)
 		else:
 			pred, r_pred = self.model(obs, act)
 			# computing losses
-			pred_loss = F.binary_cross_entropy(pred, obs_tp1)
+			pred_loss = F.smooth_l1_loss(pred, obs_tp1)
 			rew_loss = F.binary_cross_entropy(r_pred.squeeze(), rew)
 		return pred_loss + rew_loss
 		

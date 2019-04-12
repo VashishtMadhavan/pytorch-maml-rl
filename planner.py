@@ -41,7 +41,7 @@ def main(args):
 	obs_shape = env.observation_space.shape
 	act_dim = env.action_space.n
 
-	model = Model(input_size, act_dim, conv=args.conv)
+	model = Model(obs_shape[0] * obs_shape[1], act_dim, conv=args.conv)
 	model.to(args.device)
 
 	policy_file = args.model_dir + '/final.pt'
