@@ -57,7 +57,7 @@ class DirectionModel(nn.Module):
 		self.conv1 = nn.Conv2d(1, 16, kernel_size=3, stride=1)
 		self.conv2 = nn.Conv2d(16, 16, kernel_size=3, stride=1)
 		self.conv3 = nn.Conv2d(16, 16, kernel_size=3, stride=1)
-		self.fc = nn.Linear(4 * 4 * 16, 32)
+		self.fc = nn.Linear(2 * 2 * 16, 32)
 		self.final = nn.Linear(32, self.output_size)
 
 	def forward(self, x):
@@ -69,13 +69,76 @@ class DirectionModel(nn.Module):
 		out = F.relu(self.fc(out))
 		return self.final(out)
 
-def get_batch(data, batch_size, device=torch.device('cpu')):
-	random_idx = np.random.choice(np.arange(len(data)), size=batch_size, replace=False)
-	data_dicts = [data[r] for r in random_idx]
 
-	obs_batch = torch.cat([d['obs'] for d in data_dicts], dim=0)
-	dir_batch = torch.cat([d['dir'] for d in data_dicts], dim=0)
-	return obs_batch.to(device), dir_batch.to(device)
+class DirectionTrainer:
+	def __init__(self, data, obs_shape, args):
+		self.model = DirectionModel(input_size=obs_shape[0] * obs_shape[1], output_size=NUM_DIRECTIONS)
+		self.model.to(args.device)
+		self.args = args
+		self.obs = torch.cat([d['obs'] for d in data], dim=0)
+		self.dir = torch.cat([d['dir'] for d in data], dim=0)
+
+		self.N = len(self.obs)
+		self.T = self.args.epochs
+		self.device = self.args.device
+		self.train_idx = np.random.choice(np.arange(self.N), size=int(0.8 * self.N), replace=False)
+		self.val_idx = np.delete(np.arange(self.N), self.train_idx)
+		self.optim = torch.optim.Adam(self.model.parameters(), lr=self.args.lr, weight_decay=self.args.l2_pen)
+
+
+	def eval(self, data, labels):
+		self.model.eval()
+		N = data.shape[0]
+		num_batches = N // 1000
+
+		test_correct = 0; test_count = 0
+		test_loss = 0.
+		with torch.no_grad():
+			for n in range(num_batches):
+				batch_idx = np.random.choice(N, size=1000, replace=False)
+				obs = data[batch_idx].to(self.device); _dir = labels[batch_idx].to(self.device)
+				pred = self.model(obs)
+				pred_c = F.log_softmax(pred, dim=1).argmax(dim=1)
+				loss = F.cross_entropy(pred, _dir)
+				p_correct = pred_c.eq(_dir).sum().item()
+				p_count = pred_c.shape[0]
+
+				test_correct += p_correct
+				test_count += p_count
+				test_loss += loss.item()
+		return test_loss / test_count, test_correct / test_count
+
+	def train(self):
+		self.model.train()
+		for t in range(self.T):
+			num_batches = self.train_idx.shape[0] // self.args.batch_size
+			train_loss = 0.; train_acc = 0; train_count = 0
+			for _ in tqdm(range(num_batches)):
+				self.optim.zero_grad()
+				batch_idx = np.random.choice(self.train_idx, size=self.args.batch_size, replace=False)
+				obs = self.obs[batch_idx].to(self.device); _dir = self.dir[batch_idx].to(self.device)
+				pred = self.model(obs)
+				pred_c = F.log_softmax(pred, dim=1).argmax(dim=1)
+				loss = F.cross_entropy(pred, _dir)
+				p_correct = pred_c.eq(_dir).sum().item()
+				p_count = pred_c.shape[0]
+				loss.backward()
+
+				train_acc += p_correct
+				train_count += p_count
+				train_loss += loss.item()
+				self.optim.step()
+			train_acc /= float(train_count)
+			train_loss /= train_count
+
+			# validation
+			test_loss, test_acc = self.eval(self.obs[self.val_idx], self.dir[self.val_idx])
+			print('====> Epoch: {} TrainLoss: {:.4f} TrainAcc: {:.4f} TestLoss: {:.4f} TestAcc: {:.4f}'.format(t, train_loss, train_acc, test_loss, test_acc))
+
+	def save(self):
+		with open(os.path.join(self.args.outdir, 'final.pt'), 'wb') as f:
+			torch.save(self.model.state_dict(), f)
+
 
 def main(args):
 	env = gym.make('GridGameTrain-v0')
@@ -86,80 +149,40 @@ def main(args):
 	if not os.path.exists(args.outdir):
 		os.makedirs(args.outdir + '/', exist_ok=True)
 
-	model = DirectionModel(input_size=obs_shape[0] * obs_shape[1], output_size=NUM_DIRECTIONS)
-	model.to(args.device)
+	# Gather Training + Testing Data
+	train_data = collect_batch_episodes(env, test_eps=args.T, conv=True) # (T, L, hidden)
 
 	# Training
-	data = collect_batch_episodes(env, test_eps=args.T, conv=True) # (T, L, hidden)
-	optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.l2_pen)
+	trainer = DirectionTrainer(train_data, obs_shape, args)
+	trainer.train()
+	trainer.save()
 
-	random.shuffle(data)
-	train_data, test_data = data[:int(0.8 * args.T)], data[int(0.8 * args.T):]
-	for ep in range(args.epochs):
-		# Training
-		model.train()
-		num_batches = len(train_data) // args.batch_size
-		avg_train_loss = []; train_correct = 0; train_count = 0
-		for idx in tqdm(range(num_batches)):
-			obs_batch, dir_batch  = get_batch(train_data, args.batch_size, device=args.device)
-			optimizer.zero_grad()
-			pred = model(obs_batch)
-			loss = F.cross_entropy(pred, dir_batch)
-			loss.backward()
-			pred_class = F.log_softmax(pred, dim=1).argmax(dim=1)
-			train_correct += pred_class.eq(dir_batch).sum().item()
-			train_count += pred_class.shape[0]
-			avg_train_loss.append(loss.item())
-			optimizer.step()
-		avg_train_acc = float(train_correct) / train_count
-
-		model.eval()
-		t_obs_batch, t_dir_batch = get_batch(test_data, 1000, device=args.device)
-		with torch.no_grad():
-			t_pred = model(t_obs_batch)
-			t_loss = F.cross_entropy(t_pred, t_dir_batch)
-			t_pred_class = F.log_softmax(t_pred, dim=1).argmax(dim=1)
-			t_pred_acc = t_pred_class.eq(t_dir_batch).sum().item() / t_pred_class.shape[0]
-		print('====> Epoch: {} TrainLoss: {:.4f} TrainAcc: {:.4f} TestLoss: {:.4f} TestAcc: {:.4f}'.format(ep, np.mean(avg_train_loss), avg_train_acc, t_loss.item(), t_pred_acc))
-
-	with open(os.path.join(args.outdir, 'final.pt'), 'wb') as f:
-		torch.save(model.state_dict(), f)
-
-	# Testing
 	test_data = collect_batch_episodes(test_env, test_eps=1000, conv=True)
 	full_test_data = collect_batch_episodes(full_test_env, test_eps=1000, conv=True)
 
-	num_test_batches = len(test_data) // 100
-	num_full_test_batches = len(full_test_data) // 100
-	with torch.no_grad():
-		test_correct = 0; test_count = 0
-		for tidx in range(num_test_batches):
-			test_obs_batch, test_dir_batch = get_batch(test_data, 100, device=args.device)
-			test_pred_class = F.log_softmax(model(test_obs_batch), dim=1).argmax(dim=1)
-			test_correct += test_pred_class.eq(test_dir_batch).sum().item()
-			test_count += test_pred_class.shape[0]
-		test_acc = float(test_correct) / test_count
+	# small testing
+	small_test_obs = torch.cat([d['obs'] for d in test_data], dim=0)
+	small_test_dir = torch.cat([d['dir'] for d in test_data], dim=0)
+	small_test_loss, small_test_acc = trainer.eval(small_test_obs, small_test_dir)
 
-		test_correct = 0; test_count = 0
-		for tidx in range(num_test_batches):
-			test_obs_batch, test_dir_batch = get_batch(full_test_data, 100, device=args.device)
-			test_pred_class = F.log_softmax(model(test_obs_batch), dim=1).argmax(dim=1)
-			test_correct += test_pred_class.eq(test_dir_batch).sum().item()
-			test_count += test_pred_class.shape[0]
-		full_test_acc = float(test_correct) / test_count
-	print("SmallTestAcc: ", test_acc)
-	print("FullTestAcc: ", full_test_acc)
+	# testing
+	test_obs = torch.cat([d['obs'] for d in full_test_data], dim=0)
+	test_dir = torch.cat([d['dir'] for d in full_test_data], dim=0)
+	test_loss, test_acc = trainer.eval(test_obs, test_dir)
+
+	print("SmallTestAcc: ", small_test_acc)
+	print("FullTestAcc: ", test_acc)
 
 
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser()
 	parser.add_argument('--gpu', type=int, default=0, help='which gpu to use')
 	parser.add_argument('--batch_size', type=int, default=32, help='batch_size')
-	parser.add_argument('--T', type=int, default=20000, help='number of rollouts to collect')
+	parser.add_argument('--T', type=int, default=10000, help='number of rollouts to collect')
 	parser.add_argument('--outdir', type=str, default='dir_model_debug/', help='where to save results')
 	parser.add_argument('--lr', type=float, default=1e-3, help='learning rate')
 	parser.add_argument('--l2_pen', type=float, default=1e-3, help='l2 regularization penalty')
-	parser.add_argument('--epochs', type=int, default=25, help='number of training epochs')
+	parser.add_argument('--epochs', type=int, default=10, help='number of training epochs')
 	args = parser.parse_args()
 
 	os.environ['CUDA_VISIBLE_DEVICES'] = str(args.gpu)

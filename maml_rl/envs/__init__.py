@@ -49,7 +49,7 @@ register(
 
 # GridGame
 # ----------------------------------------
-map_dim = 10
+map_dim = 8
 register(
     'GridGameTrain-v0',
     entry_point='maml_rl.envs.grid_game:GridGameEnv',

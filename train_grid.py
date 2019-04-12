@@ -61,7 +61,7 @@ if __name__ == '__main__':
     parser.add_argument('--n', type=int, default=1)
     parser.add_argument('--lr', type=float, default=1e-4)
     parser.add_argument('--gamma', type=float, default=0.99)
-    parser.add_argument('--n_step', type=int, default=50, help='time horizon for PG')
+    parser.add_argument('--n_step', type=int, default=64, help='time horizon for PG')
     parser.add_argument('--tau', type=float, default=0.95, help='discount factor for GAE')
     parser.add_argument('--vf_coef', type=float, default=0.5, help='value function coeff')
     parser.add_argument('--ent_coef', type=float, default=0.01, help='entropy bonus coeff')
