@@ -77,24 +77,27 @@ def collect_batch_episodes(env, test_eps=100, conv=False):
 	return episodes
 
 class Model(nn.Module):
-	def __init__(self, input_size, action_dim, conv=False, K=2):
+	def __init__(self, input_size, action_dim, conv=False, 
+			conv_size=16, fc_size=32, K=2):
 		super(Model, self).__init__()
 		self.input_size = input_size
 		self.input_h = int(np.sqrt(input_size))
 		self.action_dim = action_dim
 		self.K = K
 		self.conv = conv
+		self.conv_size = conv_size
+		self.fc_size = fc_size
 
 		if self.conv:
-			self.conv1 = nn.Conv2d(1, 16, kernel_size=3, stride=1)
-			self.conv2 = nn.Conv2d(16, 16, kernel_size=3, stride=1)
-			self.conv3 = nn.Conv2d(16, 16, kernel_size=3, stride=1)
-			self.conv4 = nn.Conv2d(16, 16, kernel_size=3, stride=1)
-			self.fc = nn.Linear(2 * 2 * 16 + self.action_dim, 32)
+			self.conv1 = nn.Conv2d(1, self.conv_size, kernel_size=3, stride=1)
+			self.conv2 = nn.Conv2d(self.conv_size, self.conv_size, kernel_size=3, stride=1)
+			self.conv3 = nn.Conv2d(self.conv_size, self.conv_size, kernel_size=3, stride=1)
+			self.conv4 = nn.Conv2d(self.conv_size, self.conv_size, kernel_size=3, stride=1)
+			self.fc = nn.Linear(2 * 2 * self.conv_size + self.action_dim, self.fc_size)
 		else:
-			self.fc = nn.Linear(self.input_size + self.action_dim, 32)
-		self.rew_out = nn.Linear(32, 1)
-		self.pred_out = nn.Linear(32, self.input_size)
+			self.fc = nn.Linear(self.input_size + self.action_dim, self.fc_size)
+		self.rew_out = nn.Linear(self.fc_size, 1)
+		self.pred_out = nn.Linear(self.fc_size, self.input_size)
 
 	def forward(self, x, a):
 		if self.conv:
@@ -104,7 +107,9 @@ class Model(nn.Module):
 			out = F.relu(self.conv3(out))
 			out = F.relu(self.conv4(out))
 			out = out.view(out.size(0), -1)
-		out = torch.cat((out, a), dim=-1)
+			out = torch.cat((out, a), dim=-1)
+		else:
+			out = torch.cat((x, a), dim=-1)
 		out = F.relu(self.fc(out))
 		return self.pred_out(out).reshape(out.size(0),
 			self.input_h, self.input_h), torch.sigmoid(self.rew_out(out))
@@ -186,10 +191,16 @@ class ModelTrainer:
 				batch_idx = np.random.choice(self.val_idx, size=1000, replace=False)
 				avg_t_loss = self._get_loss(batch_idx, self.tbs.value(t), t)
 			print('====> Epoch: {} TrainLoss: {:.4f} TestLoss: {:.4f}'.format(t, np.mean(avg_train_loss), avg_t_loss.item()))
+		return np.mean(avg_train_loss), avg_t_loss.item()
 
-	def save(self):
+	def save(self, train_loss, test_loss):
+		log_file = self.args.outdir + '/log.txt'
 		with open(os.path.join(self.args.outdir, 'final.pt'), 'wb') as f:
 			torch.save(self.model.state_dict(), f)
+		wf = open(log_file, 'a')
+		print("FinalTrainLoss: {}".format(train_loss), file=wf)
+		print("FinalTestLoss: {}".format(test_loss), file=wf)
+
 
 def main(args):
 	env = gym.make('GridGameTrain-v0')
@@ -200,26 +211,30 @@ def main(args):
 		os.makedirs(args.outdir + '/', exist_ok=True)
 
 	input_size = obs_shape[0] * obs_shape[1]
-	model = Model(input_size, act_dim, conv=args.conv)
+	model = Model(input_size, act_dim, conv=args.conv, 
+		conv_size=args.conv_size, fc_size=args.fc_size)
 	model.to(args.device)
 
-	if not os.path.exists('data.pkl'):
+	if not os.path.exists(args.data_file):
 		data = collect_batch_episodes(env, test_eps=args.T, conv=args.conv) # (T, L, hidden)
-		pickle.dump(data, open('data.pkl', 'wb'))
+		pickle.dump(data, open(args.data_file, 'wb'))
 	else:
-		data = pickle.load(open('data.pkl', 'rb'))
+		data = pickle.load(open(args.data_file, 'rb'))
 
 	model_trainer = ModelTrainer(data, model, args)
-	model_trainer.train()
-	model_trainer.save()
+	final_train_loss, final_test_loss = model_trainer.train()
+	model_trainer.save(final_train_loss, final_test_loss)
 	
 
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser()
 	parser.add_argument('--conv', action='store_true')
+	parser.add_argument('--data_file', type=str, default='data.pkl')
 	parser.add_argument('--gpu', type=int, default=0, help='which gpu to use')
+	parser.add_argument('--conv_size', type=int, default=8)
+	parser.add_argument('--fc_size', type=int, default=32)
 	parser.add_argument('--batch_size', type=int, default=32, help='batch_size')
-	parser.add_argument('--T', type=int, default=5000, help='number of rollouts to collect')
+	parser.add_argument('--T', type=int, default=6500, help='number of rollouts to collect')
 	parser.add_argument('--outdir', type=str, default='mdn_debug/', help='where to save results')
 	parser.add_argument('--lr', type=float, default=1e-3, help='learning rate')
 	parser.add_argument('--l2_pen', type=float, default=1e-9, help='l2 regularization penalty')
