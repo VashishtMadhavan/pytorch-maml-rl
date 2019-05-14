@@ -168,7 +168,7 @@ class LSTMLearner(object):
             self.embed = torch.from_numpy(embed_temp).float().to(device=self.device)
 
             # Logging episode rew
-            for dr in rewards[self.done == 1]:
+            for dr in rewards[self.dones == 1]:
                 self.reward_log.append(dr)
 
             # Update hidden states
