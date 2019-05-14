@@ -32,7 +32,7 @@ class LSTMLearner(object):
         self.D = D
         self.N = N
         self.n_step = n_step
-        self.reward_log = deque(maxlen=500)
+        self.reward_log = deque(maxlen=100)
 
         # Sampler variables
         self.env_name = env_name
@@ -138,6 +138,12 @@ class LSTMLearner(object):
                 torch.nn.utils.clip_grad_norm_(self.policy.parameters(), self.max_grad_norm)
                 self.optimizer.step()
 
+    def _get_term_flags(self, infos):
+        if 'v0' in self.env_name:
+            return np.array(self.dones)
+        else:
+            return np.array([np.sign(v['done']) for k,v in enumerate(infos)])
+
     def sample(self):
         """
         Sample trajectories
@@ -157,19 +163,12 @@ class LSTMLearner(object):
             new_observations, rewards, self.dones, infos = self.envs.step(actions)
 
             # Update embeddings when episode is done
-            if 'v0' in self.env_name:
-                term_flags = np.array(self.dones)
-            else:
-                term_flags = np.ones(len(infos))
-                for k,v in enumerate(infos):
-                    if 'done' in v:
-                        term_flags[k] = np.sign(v['done'])
-
+            term_flags = self._get_term_flags(infos)
             embed_temp = np.hstack((one_hot(actions, self.num_actions), rewards[:, None], term_flags[:, None]))
             self.embed = torch.from_numpy(embed_temp).float().to(device=self.device)
 
             # Logging episode rew
-            for dr in rewards[self.dones]:
+            for dr in rewards[self.done == 1]:
                 self.reward_log.append(dr)
 
             # Update hidden states

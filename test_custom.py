@@ -6,10 +6,8 @@ import argparse
 import imageio
 from tqdm import tqdm
 import matplotlib.pyplot as plt
-
 import maml_rl.envs
 from maml_rl.policies import ConvGRUPolicy, ConvCGRUPolicy, ConvLSTMPolicy
-from maml_rl.lstm_learner import coordinate_tile
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -51,12 +49,10 @@ def evaluate(env, policy, device, test_eps=10, greedy=False, render=False, rando
         else:
             hx = torch.zeros(policy.D, 1, 32, 7, 7).to(device=device)
         R = 0; T = 0
-        #x_tile, y_tile = coordinate_tile(np.array(obs)[None])
 
         while not done:
             frames.append(np.array(obs))
             if render: env.render()
-            #obs_inp = np.concatenate((np.array(obs)[None], x_tile, y_tile), axis=-1).astype(np.float32)
             obs_inp = np.array(obs)[None]
             obs_tensor = torch.from_numpy(obs_inp).to(device=device)
             action_dist, value_tensor, hx = policy(obs_tensor, hx, e_tensor)
@@ -90,6 +86,7 @@ def main():
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     policy = load_params(args.checkpoint, env, device, clstm=args.clstm, cnn_type=args.cnn_type, D=args.D, N=args.N)
+    policy.to(device)
     episode_rew, episode_steps, second_ep_rew = evaluate(env, policy, device, greedy=args.greedy, test_eps=args.test_eps,
         render=args.render, random=args.random, record=args.record, clstm=args.clstm)
 
