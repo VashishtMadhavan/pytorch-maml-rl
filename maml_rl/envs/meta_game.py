@@ -31,7 +31,7 @@ class CustomGameMetaEnv(gym.Env):
         self.done_counter = 0
         self.curr_task = None
         self.t = 0
-        self.reward_mult = 10.0
+        self.reward_mult = 1.0
 
     def seed(self, seed=None):
         if not seed:

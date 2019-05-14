@@ -23,7 +23,7 @@ class CustomGameEnv(gym.Env):
 
         self.num_actions = len(self._action_set)
         self.viewer = None
-        self.reward_mult = 10.0
+        self.reward_mult = 1.0
 
     def seed(self, seed=None):
         if not seed:
