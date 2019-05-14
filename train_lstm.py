@@ -1,5 +1,6 @@
 import maml_rl.envs
 import gym
+import os
 import numpy as np
 import torch
 import time
@@ -17,9 +18,9 @@ def main(args):
     logger = gen_utils.Logger(args.outdir)
     logger.save_config(args)
 
-    learner = LSTMLearner(env_name=args.env, batch_size=args.batch_size, ent_coef=args.ent_coef, latent=args.latent_model,
-        D=args.D, N=args.N, num_workers=args.workers, num_batches=args.train_iters, gamma=args.gamma, use_bn=args.use_bn,
-        cnn_type=args.cnn_type, lr=args.lr, tau=args.tau, vf_coef=args.vf_coef, l2_coef=args.l2_coef, device=args.device, clstm=args.clstm)
+    learner = LSTMLearner(env_name=args.env, ent_coef=args.ent_coef, n_step=args.n_step,D=args.D, N=args.N,
+        num_workers=args.workers, num_batches=args.train_iters, gamma=args.gamma, use_bn=args.use_bn, cnn_type=args.cnn_type,
+        lr=args.lr, tau=args.tau, vf_coef=args.vf_coef, l2_coef=args.l2_coef, device=args.device, clstm=args.clstm)
 
     # Loading last checkpoint
     if args.load and logger.hdfs_found:
@@ -33,18 +34,18 @@ def main(args):
     while batch < args.train_iters:
         tstart = time.time()
         episodes = learner.sample()
-        learner.surrogate_step(episodes)
+        learner.step(episodes)
 
         batch_step_time = time.time() - tstart
-        tot_rew = torch_utils.total_rewards([episodes.rewards])
-        tsteps = (batch + 1) * args.batch_size * 100
+        tsteps = (batch + 1) * args.workers * args.n_step
 
         # Logging metrics
-        logger.logkv('MeanReward:', tot_rew)
+        logger.logkv('MeanReward:', np.mean(learner.reward_log))
         logger.logkv('Batch:', batch)
         logger.logkv('Tsteps:', tsteps)
         logger.logkv('TimePerBatch:', batch_step_time)
         logger.print_results()
+
 
         # Save policy network
         if batch % 50 == 0:
@@ -63,31 +64,34 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Reinforcement learning with LSTMs')
 
     # General
-    parser.add_argument('--env', type=str)
+    parser.add_argument('--env', type=str, default='CustomGame-v0')
     parser.add_argument('--hdfs', action='store_false')
     parser.add_argument('--clstm', action='store_true', help='whether or not to use a conv-lstm')
     parser.add_argument('--load', action='store_true', help='loading previous experiment')
 
-    parser.add_argument('--latent_model', type=str, default=None, help='model for DARLA style training')
-    parser.add_argument('--D', type=int, default=1, help='stack depth of LSTMs')
-    parser.add_argument('--N', type=int, default=1, help='number of repeated LSTM steps before output')
-    parser.add_argument('--cnn_type', type=str, default='nature', help='which type of network encoder to use: (nature, impala)')
-    parser.add_argument('--lr', type=float, default=2.5e-4)
-    parser.add_argument('--gamma', type=float, default=0.99)
+    # Training Args
+    parser.add_argument('--lr', type=float, default=2.5e-4, help='learning rate')
+    parser.add_argument('--gamma', type=float, default=0.99, help='discount factor')
     parser.add_argument('--tau', type=float, default=0.95, help='discount factor for GAE')
     parser.add_argument('--vf_coef', type=float, default=0.5, help='value function coeff')
     parser.add_argument('--ent_coef', type=float, default=0.05, help='entropy bonus coeff')
     parser.add_argument('--l2_coef', type=float, default=0., help='L2 regularization coeff')
     parser.add_argument('--use_bn', action='store_true', help='use batch normalizaton')
-    parser.add_argument('--batch-size', type=int, default=100, help='num episodes for gradient est.')
+    parser.add_argument('--workers', type=int, default=100, help='num episodes for gradient est.')
     parser.add_argument('--train-iters', type=int, default=5000, help='training iterations')
+    parser.add_argument('--n_step', type=int, default=64, help='number of steps per PG update')
 
+    # Network Args
+    parser.add_argument('--D', type=int, default=1, help='stack depth of LSTMs')
+    parser.add_argument('--N', type=int, default=1, help='number of repeated LSTM steps before output')
+    parser.add_argument('--cnn_type', type=str, default='nature', help='which type of network encoder to use: (nature, impala)')
+    
     # Miscellaneous
-    parser.add_argument('--outdir', type=str, default='debug')
-    parser.add_argument('--workers', type=int, default=80, help='num workers for traj sampling')
+    parser.add_argument('--gpu', type=str, default='0')
+    parser.add_argument('--outdir', type=str, default='custom_game_debug')
     args = parser.parse_args()
 
     # Device
+    os.environ['CUDA_VISIBLE_DEVICES'] = str(args.gpu)
     args.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
     main(args)
