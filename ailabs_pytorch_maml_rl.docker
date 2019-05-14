@@ -18,18 +18,20 @@ ENV PATH=/opt/conda/bin/:${PATH}
 
 # Install requirements
 RUN /bin/bash --login -c "conda activate base && \
-    pip install pygame cloudpickle tqdm && \
-    pip install torch && \
-    pip install torchvision && \
+    pip install --no-cache-dir torch torchvision && \
+    pip install pygame cloudpickle tqdm opencv-python"
+
+COPY ./maml_rl /home/work/maml_rl
+COPY ./*py /home/work/
+
+# Install requirements
+RUN /bin/bash --login -c "conda activate base && \
+    cd /home/work && \
     git clone https://github.com/VashishtMadhavan/PyGame-Learning-Environment.git && \
     pip install -e 'PyGame-Learning-Environment' && \
     git clone https://github.com/VashishtMadhavan/gym.git && \
     pip install -e 'gym'"
 
 ENV PATH=${PATH}:/usr/local/cuda/bin/
-
-COPY ./maml_rl /home/work/maml_rl
-COPY ./*py /home/work/
-
 ENV LC_ALL C.UTF-8
 ENV LANG C.UTF-8
