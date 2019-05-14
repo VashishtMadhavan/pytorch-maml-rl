@@ -175,7 +175,6 @@ class LSTMLearner(object):
 
         while (not all(dones)) or (not self.queue.empty()):
             with torch.no_grad():
-                #observations = np.concatenate((observations, x_tile, y_tile), axis=-1).astype(np.float32)
                 obs_tensor = torch.from_numpy(observations).to(device=self.device)
                 act_dist, values_tensor, hx = self.policy(obs_tensor, hx, embed_tensor)
                 act_tensor = act_dist.sample()
