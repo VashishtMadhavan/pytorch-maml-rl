@@ -33,12 +33,8 @@ def main(args):
     while batch < args.train_iters:
         tstart = time.time()
         episodes = learner.sample()
-        if args.ppo:
-            # PPO step
-            learner.surrogate_step(episodes)
-        else:
-            # Regular A2C step
-            learner.step(episodes)
+        learner.surrogate_step(episodes)
+
         batch_step_time = time.time() - tstart
         tot_rew = torch_utils.total_rewards([episodes.rewards])
         tsteps = (batch + 1) * args.batch_size * 100
@@ -68,7 +64,6 @@ if __name__ == '__main__':
 
     # General
     parser.add_argument('--env', type=str)
-    parser.add_argument('--ppo', action='store_true')
     parser.add_argument('--hdfs', action='store_false')
     parser.add_argument('--clstm', action='store_true', help='whether or not to use a conv-lstm')
     parser.add_argument('--load', action='store_true', help='loading previous experiment')

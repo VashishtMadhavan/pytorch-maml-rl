@@ -20,15 +20,6 @@ def one_hot(actions, num_actions):
     x[np.arange(len(actions)), actions] = 1.
     return x
 
-def coordinate_tile(x):
-    batch_size, y_dim, x_dim, _ = x.shape
-    ii = np.tile(np.expand_dims(np.arange(x_dim), 0), (batch_size, 1))
-    ii = np.expand_dims(np.tile(np.expand_dims(ii, -1), (1, 1, y_dim)), -1)
-
-    jj = np.tile(np.expand_dims(np.arange(y_dim), 0), (batch_size, 1))
-    jj = np.expand_dims(np.tile(np.expand_dims(jj, 1), (1, x_dim, 1)), -1)
-    return ii / x_dim, jj / y_dim
-
 class LSTMLearner(object):
     """
     LSTM Learner using A2C/PPO
@@ -123,7 +114,6 @@ class LSTMLearner(object):
         entropy_loss = weighted_mean(entropy, dim=0, weights=episodes.mask)
         return pg_loss + self.vf_coef * vf_loss - self.ent_coef * entropy_loss
 
-
     def surrogate_loss(self, episodes, inds=None):
         """
         PPO Surrogate Loss
@@ -149,18 +139,10 @@ class LSTMLearner(object):
         entropy_loss = weighted_mean(entropy[:, inds], dim=0, weights=masks)
         return pg_loss + self.vf_coef * vf_loss - self.ent_coef * entropy_loss
 
-
-    def step(self, episodes):
+    def surrogate_step(self, episodes):
         """
         Adapt the parameters of the policy network to a new set of examples
         """
-        self.optimizer.zero_grad()
-        loss = self.loss(episodes)
-        loss.backward()
-        torch.nn.utils.clip_grad_norm_(self.policy.parameters(), self.max_grad_norm)
-        self.optimizer.step()
-
-    def surrogate_step(self, episodes):
         for _ in range(self.surrogate_epochs):
             for k in range(self.surrogate_batches):
                 sample_inds = np.random.choice(self.batch_size, self.surrogate_batch_size, replace=False)
@@ -182,7 +164,6 @@ class LSTMLearner(object):
 
         self.envs.reset_task([None for _ in range(self.num_workers)])
         observations, batch_ids = self.envs.reset()
-        #x_tile, y_tile = coordinate_tile(observations)
         dones = [False]
 
         embed_tensor = torch.zeros(self.num_workers, self.num_actions + 2).to(device=self.device)
