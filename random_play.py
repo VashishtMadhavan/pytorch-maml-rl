@@ -6,7 +6,7 @@ import maml_rl.envs
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--env', type=str, default='GridGameTrain-v0')
+parser.add_argument('--env', type=str, default='CustomGame-v0')
 parser.add_argument('--test-eps', type=int, default=500)
 parser.add_argument('--render', action='store_true')
 args = parser.parse_args()
@@ -20,8 +20,7 @@ for t in tqdm(range(args.test_eps)):
 	steps = 0; ep_rew = 0
 	while not done:
 		if args.render: env.render()
-		action = np.random.randint(env.action_space.n)
-		obs, rew, done, info = env.step(action)
+		obs, rew, done, info = env.step(np.random.randint(env.action_space.n))
 		ep_rew += rew
 		steps += 1
 	total_steps.append(steps)
