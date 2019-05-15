@@ -5,7 +5,7 @@ import numpy as np
 from maml_rl.utils.torch_utils import weighted_mean, weighted_normalize
 from maml_rl.envs.subproc_vec_env import SubprocVecEnv
 from maml_rl.episode import LSTMBatchEpisodes
-from maml_rl.policies import ConvCGRUPolicy, ConvGRUPolicy
+from maml_rl.policies import ConvCGRUPolicy, ConvGRUPolicy, ConvPolicy
 from collections import deque
 
 def make_env(env_name):
@@ -24,7 +24,7 @@ class LSTMLearner(object):
     """
     def __init__(self, env_name, num_workers, num_batches=1000, D=1, N=1, n_step=5,
                 gamma=0.95, lr=0.01, tau=1.0, ent_coef=.01, vf_coef=0.5, lstm_size=256, clip_frac=0.2, device='cpu',
-                surr_epochs=3, clstm=False, surr_batches=4, l2_coef=0., use_bn=False, max_grad_norm=0.5, cnn_type='nature'):
+                surr_epochs=3, clstm=False, surr_batches=4, max_grad_norm=0.5, cnn_type='nature'):
         self.vf_coef = vf_coef
         self.ent_coef = ent_coef
         self.gamma = gamma
@@ -53,19 +53,21 @@ class LSTMLearner(object):
         if not self.use_clstm:
             self.lstm_size = 256
             self.hx = torch.zeros(self.D, self.num_workers, self.lstm_size).to(device=device)
-            self.policy = ConvGRUPolicy(input_size=self.obs_shape, output_size=self.num_actions,
-                use_bn=use_bn, cnn_type=cnn_type, D=self.D, N=self.N)
+            #self.policy = ConvGRUPolicy(input_size=self.obs_shape, output_size=self.num_actions,
+            #    use_bn=False, cnn_type=cnn_type, D=self.D, N=self.N)
+            self.policy = ConvPolicy(input_size=self.obs_shape, output_size=self.num_actions,
+                use_bn=False, cnn_type=cnn_type)
         else:
             self.lstm_size = 32
             self.hx = torch.zeros(self.D, self.num_workers, self.lstm_size, 7, 7).to(device=device)
             self.policy = ConvCGRUPolicy(input_size=self.obs_shape, output_size=self.num_actions,
-                use_bn=use_bn, D=self.D, N=self.N)
+                use_bn=False, D=self.D, N=self.N)
 
         # Optimization Variables
         self.lr = lr
         self.tau = tau
         self.clip_frac = clip_frac
-        self.optimizer = optim.Adam(self.policy.parameters(), lr=self.lr, eps=1e-5, weight_decay=l2_coef)
+        self.optimizer = optim.Adam(self.policy.parameters(), lr=self.lr, eps=1e-5)
 
         # PPO variables
         self.surrogate_epochs = surr_epochs
@@ -84,7 +86,8 @@ class LSTMLearner(object):
             hx = torch.zeros(self.D, self.num_workers, self.lstm_size, 7, 7).to(device=self.device)
 
         for t in range(T):
-            pi, v, hx = self.policy(episodes.observations[t], hx, episodes.embeds[t])
+            #pi, v, hx = self.policy(episodes.observations[t], hx, episodes.embeds[t])
+            pi, v = self.policy(episodes.observations[t])
             values.append(v)
             entropy.append(pi.entropy())
             if ratio:
@@ -152,7 +155,8 @@ class LSTMLearner(object):
         for ns in range(self.n_step):
             with torch.no_grad():
                 obs_tensor = torch.from_numpy(self.obs).float().to(device=self.device)
-                act_dist, values_tensor, self.hx = self.policy(obs_tensor, self.hx, self.embed)
+                #act_dist, values_tensor, self.hx = self.policy(obs_tensor, self.hx, self.embed)
+                act_dist, values_tensor = self.policy(obs_tensor)
                 act_tensor = act_dist.sample()
 
                 # cpu variables for logging

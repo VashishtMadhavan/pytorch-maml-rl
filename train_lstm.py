@@ -18,9 +18,9 @@ def main(args):
     logger = gen_utils.Logger(args.outdir)
     logger.save_config(args)
 
-    learner = LSTMLearner(env_name=args.env, ent_coef=args.ent_coef, n_step=args.n_step,D=args.D, N=args.N,
-        num_workers=args.workers, num_batches=args.train_iters, gamma=args.gamma, use_bn=args.use_bn, cnn_type=args.cnn_type,
-        lr=args.lr, tau=args.tau, vf_coef=args.vf_coef, l2_coef=args.l2_coef, device=args.device, clstm=args.clstm)
+    learner = LSTMLearner(env_name=args.env, ent_coef=args.ent_coef, n_step=args.n_step,
+        num_workers=args.workers, num_batches=args.train_iters, gamma=args.gamma, lr=args.lr, 
+        tau=args.tau, vf_coef=args.vf_coef, device=args.device, clstm=args.clstm)
 
     # Loading last checkpoint
     if args.load and logger.hdfs_found:
@@ -45,7 +45,6 @@ def main(args):
         logger.logkv('Tsteps:', tsteps)
         logger.logkv('TimePerBatch:', batch_step_time)
         logger.print_results()
-
 
         # Save policy network
         if batch % 50 == 0:
@@ -75,16 +74,9 @@ if __name__ == '__main__':
     parser.add_argument('--tau', type=float, default=0.95, help='discount factor for GAE')
     parser.add_argument('--vf_coef', type=float, default=0.5, help='value function coeff')
     parser.add_argument('--ent_coef', type=float, default=0.05, help='entropy bonus coeff')
-    parser.add_argument('--l2_coef', type=float, default=0., help='L2 regularization coeff')
-    parser.add_argument('--use_bn', action='store_true', help='use batch normalizaton')
-    parser.add_argument('--workers', type=int, default=100, help='num episodes for gradient est.')
     parser.add_argument('--train-iters', type=int, default=5000, help='training iterations')
-    parser.add_argument('--n_step', type=int, default=64, help='number of steps per PG update')
-
-    # Network Args
-    parser.add_argument('--D', type=int, default=1, help='stack depth of LSTMs')
-    parser.add_argument('--N', type=int, default=1, help='number of repeated LSTM steps before output')
-    parser.add_argument('--cnn_type', type=str, default='nature', help='which type of network encoder to use: (nature, impala)')
+    parser.add_argument('--workers', type=int, default=128, help='num episodes for gradient est.')
+    parser.add_argument('--n_step', type=int, default=128, help='number of steps per PG update')
     
     # Miscellaneous
     parser.add_argument('--gpu', type=str, default='0')
