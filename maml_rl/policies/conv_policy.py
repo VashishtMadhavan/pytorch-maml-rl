@@ -9,7 +9,7 @@ import numpy as np
 
 class ConvPolicy(nn.Module):
     """
-    Baseline DQN Architecture
+    Baseline PPO Architecture
     """
     def __init__(self, input_size, output_size, use_bn=False, cnn_type='nature'):
         super(ConvPolicy, self).__init__()

@@ -20,19 +20,18 @@ def one_hot(actions, num_actions):
 
 class LSTMLearner(object):
     """
-    LSTM Learner using A2C/PPO
+    LSTM Learner using PPO
     """
-    def __init__(self, env_name, num_workers, num_batches=1000, D=1, N=1, n_step=5,
-                gamma=0.95, lr=0.01, tau=1.0, ent_coef=.01, vf_coef=0.5, lstm_size=256, clip_frac=0.2, device='cpu',
+    def __init__(self, env_name, num_workers, num_batches=1000, n_step=5, gamma=0.95, lr=0.01, 
+                tau=1.0, ent_coef=.01, vf_coef=0.5, lstm_size=256, clip_frac=0.2, device='cpu',
                 surr_epochs=3, clstm=False, surr_batches=4, max_grad_norm=0.5, cnn_type='nature'):
         self.vf_coef = vf_coef
         self.ent_coef = ent_coef
         self.gamma = gamma
         self.use_clstm = clstm
-        self.D = D
-        self.N = N
         self.n_step = n_step
         self.reward_log = deque(maxlen=100)
+        self.lstm_size = lstm_size
 
         # Sampler variables
         self.env_name = env_name
@@ -40,7 +39,6 @@ class LSTMLearner(object):
         self.num_workers = num_workers
         self.env_name = env_name
         self.envs = SubprocVecEnv([make_env(env_name) for _ in range(self.num_workers)])
-        self._env = gym.make(self.env_name)
         self.obs_shape = self.envs.observation_space.shape
         self.num_actions = self.envs.action_space.n
 
@@ -51,17 +49,15 @@ class LSTMLearner(object):
         self.embed[:, 0] = 1.
 
         if not self.use_clstm:
-            self.lstm_size = 256
-            self.hx = torch.zeros(self.D, self.num_workers, self.lstm_size).to(device=device)
+            self.hx = torch.zeros(self.num_workers, self.lstm_size).to(device=device)
             #self.policy = ConvGRUPolicy(input_size=self.obs_shape, output_size=self.num_actions,
-            #    use_bn=False, cnn_type=cnn_type, D=self.D, N=self.N)
+            #    use_bn=False, cnn_type=cnn_type, lstm_size=self.lstm_size)
             self.policy = ConvPolicy(input_size=self.obs_shape, output_size=self.num_actions,
                 use_bn=False, cnn_type=cnn_type)
         else:
-            self.lstm_size = 32
-            self.hx = torch.zeros(self.D, self.num_workers, self.lstm_size, 7, 7).to(device=device)
+            self.hx = torch.zeros(self.num_workers, self.lstm_size, 7, 7).to(device=device)
             self.policy = ConvCGRUPolicy(input_size=self.obs_shape, output_size=self.num_actions,
-                use_bn=False, D=self.D, N=self.N)
+                use_bn=False, cnn_type=cnn_type, lstm_size=self.lstm_size)
 
         # Optimization Variables
         self.lr = lr
@@ -81,9 +77,9 @@ class LSTMLearner(object):
         T = episodes.observations.size(0)
         values, log_probs, entropy = [], [], []
         if not self.use_clstm:
-            hx = torch.zeros(self.D, self.num_workers, self.lstm_size).to(device=self.device)
+            hx = torch.zeros(self.num_workers, self.lstm_size).to(device=self.device)
         else:
-            hx = torch.zeros(self.D, self.num_workers, self.lstm_size, 7, 7).to(device=self.device)
+            hx = torch.zeros(self.num_workers, self.lstm_size, 7, 7).to(device=self.device)
 
         for t in range(T):
             #pi, v, hx = self.policy(episodes.observations[t], hx, episodes.embeds[t])
@@ -132,8 +128,8 @@ class LSTMLearner(object):
         """
         Adapt the parameters of the policy network to a new set of examples
         """
-        for _ in range(self.surrogate_epochs):
-            for k in range(self.surrogate_batches):
+        for i in range(self.surrogate_epochs):
+            for j in range(self.surrogate_batches):
                 sample_inds = np.random.choice(self.num_workers, self.surrogate_batch_size, replace=False)
                 self.optimizer.zero_grad()
                 loss = self.loss(episodes, inds=sample_inds)

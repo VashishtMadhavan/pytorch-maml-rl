@@ -18,9 +18,10 @@ def main(args):
     logger = gen_utils.Logger(args.outdir)
     logger.save_config(args)
 
+    lstm_size = 32 if args.clstm else 256
     learner = LSTMLearner(env_name=args.env, ent_coef=args.ent_coef, n_step=args.n_step,
         num_workers=args.workers, num_batches=args.train_iters, gamma=args.gamma, lr=args.lr, 
-        tau=args.tau, vf_coef=args.vf_coef, device=args.device, clstm=args.clstm)
+        tau=args.tau, vf_coef=args.vf_coef, device=args.device, clstm=args.clstm, lstm_size=lstm_size)
 
     # Loading last checkpoint
     if args.load and logger.hdfs_found:
