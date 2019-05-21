@@ -50,10 +50,10 @@ class LSTMLearner(object):
 
         if not self.use_clstm:
             self.hx = torch.zeros(self.num_workers, self.lstm_size).to(device=device)
-            #self.policy = ConvGRUPolicy(input_size=self.obs_shape, output_size=self.num_actions,
-            #    use_bn=False, cnn_type=cnn_type, lstm_size=self.lstm_size)
-            self.policy = ConvPolicy(input_size=self.obs_shape, output_size=self.num_actions,
-                use_bn=False, cnn_type=cnn_type)
+            self.policy = ConvGRUPolicy(input_size=self.obs_shape, output_size=self.num_actions,
+                use_bn=False, cnn_type=cnn_type, lstm_size=self.lstm_size)
+            #self.policy = ConvPolicy(input_size=self.obs_shape, output_size=self.num_actions,
+            #    use_bn=False, cnn_type=cnn_type)
         else:
             self.hx = torch.zeros(self.num_workers, self.lstm_size, 7, 7).to(device=device)
             self.policy = ConvCGRUPolicy(input_size=self.obs_shape, output_size=self.num_actions,
@@ -82,8 +82,8 @@ class LSTMLearner(object):
             hx = torch.zeros(self.num_workers, self.lstm_size, 7, 7).to(device=self.device)
 
         for t in range(T):
-            #pi, v, hx = self.policy(episodes.observations[t], hx, episodes.embeds[t])
-            pi, v = self.policy(episodes.observations[t])
+            pi, v, hx = self.policy(episodes.observations[t], hx, episodes.embeds[t])
+            #pi, v = self.policy(episodes.observations[t])
             values.append(v)
             entropy.append(pi.entropy())
             if ratio:
@@ -151,8 +151,8 @@ class LSTMLearner(object):
         for ns in range(self.n_step):
             with torch.no_grad():
                 obs_tensor = torch.from_numpy(self.obs).float().to(device=self.device)
-                #act_dist, values_tensor, self.hx = self.policy(obs_tensor, self.hx, self.embed)
-                act_dist, values_tensor = self.policy(obs_tensor)
+                act_dist, values_tensor, self.hx = self.policy(obs_tensor, self.hx, self.embed)
+                #act_dist, values_tensor = self.policy(obs_tensor)
                 act_tensor = act_dist.sample()
 
                 # cpu variables for logging
@@ -174,9 +174,9 @@ class LSTMLearner(object):
             # Update hidden states
             dones_tensor = torch.from_numpy(self.dones.astype(np.float32)).to(device=self.device)
             if not self.use_clstm:
-                self.hx[:, dones_tensor == 1, :] = 0.
+                self.hx[dones_tensor == 1, :] = 0.
             else:
-                self.hx[:, dones_tensor == 1, :, :, :] = 0.
+                self.hx[dones_tensor == 1, :, :, :] = 0.
 
             self.embed[dones_tensor == 1] = 0.
             self.embed[dones_tensor == 1, 0] = 1.

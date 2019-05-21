@@ -59,12 +59,12 @@ class ConvGRUPolicy(nn.Module):
             hidden_size = 256
 
         lstm_input_size = hidden_size + self.output_size + 2
-        self.lstm = nn.LSTMCell(lstm_input_size, hidden_size=self.lstm_size)
+        self.gru = nn.GRUCell(lstm_input_size, hidden_size=self.lstm_size)
         self.pi = nn.Linear(self.lstm_size, self.output_size)
         self.v = nn.Linear(self.lstm_size, 1)
 
     def forward(self, x, hx, embed):
         output = self.encoder(x)
         output = torch.cat((output, embed), dim=1)
-        h = self.lstm(output, hx)
+        h = self.gru(output, hx)
         return Categorical(logits=self.pi(h)), self.v(h), h
